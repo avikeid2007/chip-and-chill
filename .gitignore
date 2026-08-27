@@ -1,0 +1,25 @@
+# .NET
+bin/
+obj/
+*.user
+*.suo
+
+# Node
+node_modules/
+dist/
+.vite/
+
+# Environment / secrets
+.env
+*.env
+
+# IDE
+.vs/
+.idea/
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Uploads (runtime user content)
+server/ChipAndChill.Api/wwwroot/uploads/

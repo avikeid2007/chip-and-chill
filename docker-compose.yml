@@ -1,0 +1,37 @@
+version: "3.9"
+
+services:
+  db:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: chipandchill-db
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: "YourStrong!Passw0rd"
+    ports:
+      - "1433:1433"
+    volumes:
+      - chipandchill-db-data:/var/opt/mssql
+
+  api:
+    build:
+      context: ./server/ChipAndChill.Api
+    container_name: chipandchill-api
+    depends_on:
+      - db
+    environment:
+      ASPNETCORE_ENVIRONMENT: "Development"
+      ConnectionStrings__SqlServer: "Server=db,1433;Database=OpenGolf;User Id=sa;Password=YourStrong!Passw0rd;TrustServerCertificate=True;"
+    ports:
+      - "5000:8080"
+
+  client:
+    build:
+      context: ./client
+    container_name: chipandchill-client
+    depends_on:
+      - api
+    ports:
+      - "5173:80"
+
+volumes:
+  chipandchill-db-data:
