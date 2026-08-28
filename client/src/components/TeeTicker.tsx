@@ -4,15 +4,17 @@ const dotColor: Record<TeeSlot["status"], string> = {
   open: "bg-emerald-400",
   low: "bg-gold",
   full: "bg-red-400",
+  blocked: "bg-gray-400",
 };
 
 interface TeeTickerProps {
   courseName: string;
   slots: TeeSlot[];
+  currencySymbol?: string;
   onSelect?: (slot: TeeSlot) => void;
 }
 
-export default function TeeTicker({ courseName, slots, onSelect }: TeeTickerProps) {
+export default function TeeTicker({ courseName, slots, currencySymbol = "₹", onSelect }: TeeTickerProps) {
   return (
     <div className="bg-white/6 border border-white/14 rounded-md backdrop-blur-sm overflow-hidden">
       <div className="flex justify-between items-center px-4 py-3.5 border-b border-white/12">
@@ -32,7 +34,7 @@ export default function TeeTicker({ courseName, slots, onSelect }: TeeTickerProp
           <span className="text-xs opacity-75">
             {slot.status === "full" ? "Full — waitlist available" : `${slot.playersBooked} of ${slot.playersMax} players`}
           </span>
-          <span className="text-mono text-right text-sand">${slot.price}</span>
+          <span className="text-mono text-right text-sand">{currencySymbol}{slot.price}</span>
           <span className={`w-2 h-2 rounded-full justify-self-end ${dotColor[slot.status]}`} />
         </button>
       ))}

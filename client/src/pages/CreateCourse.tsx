@@ -4,6 +4,7 @@ import NavBar from "../components/NavBar";
 import { useAuth } from "../api/AuthContext";
 import type { AuthResponse } from "../api/auth";
 import { apiFetch } from "../api/client";
+import { SUPPORTED_CURRENCIES, DEFAULT_CURRENCY, DEFAULT_CURRENCY_SYMBOL } from "../utils/currency";
 
 interface HoleSeed {
   holeNumber: number;
@@ -32,6 +33,8 @@ export default function CreateCourse() {
   const [timezone, setTimezone] = useState(
     Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"
   );
+  const [currency, setCurrency] = useState(DEFAULT_CURRENCY);
+  const [currencySymbol, setCurrencySymbol] = useState(DEFAULT_CURRENCY_SYMBOL);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [holeCount, setHoleCount] = useState<9 | 18>(9);
@@ -111,6 +114,8 @@ export default function CreateCourse() {
           address: address || null,
           description: description || null,
           timezone,
+          currency,
+          currencySymbol,
           logoUrl,
           holes: type === "Range" ? [] : holes,
         }),
@@ -229,17 +234,39 @@ export default function CreateCourse() {
               />
             </div>
 
-            <div>
-              <label className="block text-xs font-medium text-ink-soft mb-1.5">Timezone</label>
-              <select
-                value={timezone}
-                onChange={(e) => setTimezone(e.target.value)}
-                className="border border-[#E4E8E3] rounded-md px-3 py-2 text-sm"
-              >
-                {Intl.supportedValuesOf("timeZone").map((tz) => (
-                  <option key={tz} value={tz}>{tz}</option>
-                ))}
-              </select>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-medium text-ink-soft mb-1.5">Timezone</label>
+                <select
+                  value={timezone}
+                  onChange={(e) => setTimezone(e.target.value)}
+                  className="border border-[#E4E8E3] rounded-md px-3 py-2 text-sm bg-white w-full"
+                >
+                  {Intl.supportedValuesOf("timeZone").map((tz) => (
+                    <option key={tz} value={tz}>{tz}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-ink-soft mb-1.5">Currency</label>
+                <select
+                  value={currency}
+                  onChange={(e) => {
+                    const opt = SUPPORTED_CURRENCIES.find((c) => c.code === e.target.value);
+                    setCurrency(e.target.value);
+                    setCurrencySymbol(opt?.symbol || "₹");
+                  }}
+                  className="border border-[#E4E8E3] rounded-md px-3 py-2 text-sm bg-white w-full font-medium text-fairway"
+                >
+                  {SUPPORTED_CURRENCIES.map((c) => (
+                    <option key={c.code} value={c.code}>
+                      {c.label}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-[11px] text-ink-soft mt-1">Default: ₹ (INR) for tee slots & billing.</p>
+              </div>
             </div>
           </div>
 

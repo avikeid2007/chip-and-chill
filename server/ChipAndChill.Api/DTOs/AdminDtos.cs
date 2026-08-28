@@ -16,8 +16,9 @@ public record InviteStaffRequest(string Email, string Password, string FirstName
 public record StaffMemberResponse(Guid Id, string Email, string FirstName, string LastName, bool IsActive);
 
 // ---- Admin bookings ----
-public record AdminBookingResponse(Guid Id, Guid TeeSlotId, DateTime StartTime, string UserEmail, string UserName, int PartySize, BookingStatus Status, decimal Price);
+public record AdminBookingResponse(Guid Id, Guid TeeSlotId, DateTime StartTime, string UserEmail, string UserName, int PartySize, BookingStatus Status, decimal Price, PaymentStatus PaymentStatus, decimal AmountPaid);
 public record CheckInResponse(Guid Id, BookingStatus Status);
+
 
 // ---- Slot blocking ----
 public record UpdateTeeSlotRequest(bool IsBlocked);

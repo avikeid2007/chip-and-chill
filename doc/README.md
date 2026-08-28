@@ -17,7 +17,7 @@ This folder tracks everything that's been built and how to test it.
 
 ```powershell
 # Terminal 1 — API (port 5000)
-cd server/OpenGolf.Api
+cd server/ChipAndChill.Api
 dotnet run --urls "http://localhost:5000"
 
 # Terminal 2 — Client (port 5173)
@@ -46,8 +46,22 @@ Open **http://localhost:5173**
 - Booking confirmation emails (pluggable provider: Console / SMTP / SendGrid-stub)
 - Waitlists: join full slots, auto-email notification on cancellation
 
-### Phase 3+ — Not started
-Payments (Stripe Connect), pricing rules engine, branding/domains, Super Admin tools, tournaments, range mode, plugin API.
+### Phase 3 — Multi-Tenant Polish (COMPLETE)
+- ✅ Tenant onboarding flow (`/create-course`)
+- ✅ Super Admin tools: platform stats dashboard (`/super-admin`), tenant list + suspend/reactivate (`/super-admin/tenants`)
+- ✅ Cross-tenant authorization hardening: `[TenantScoped]` route-param validation attribute
+- ✅ Branding settings (`/dashboard/branding`): logo upload, brand color, subdomain, custom domain CNAME instructions, course currency configuration
+- ✅ Multi-Currency Support: Tenant-level currency configuration with `INR` (`₹ / ₨`) as default, plus USD (`$`), EUR (`€`), GBP (`£`), AED (`AED`), CAD (`C$`), AUD (`A$`), SGD (`S$`), JPY (`¥`)
+- ✅ Custom domain routing: hostname resolution middleware + `GET /api/tenants/resolve`
+- ✅ Dynamic pricing rules engine (`/dashboard/pricing`): weekend/weekday, twilight hours, priority hierarchy, live price simulator
+- ✅ Stripe Connect & booking payments (`/dashboard/payouts`): express onboarding, online booking checkout, sandbox payment mode, auto-refunds on cancellation
+- ✅ Tournament registration payments foundation
+
+### Phase 4 — Tournaments, Driving Range & Extensibility
+- ✅ Tournament & League Engine (`/tournaments`, `/tournaments/:id`, `/dashboard/tournaments`): Format support (Stroke Play, Stableford, Scramble, Match Play), online registration with entry fee payments, 1-click auto-pairings generator, live hole score logger, dynamic leaderboards with to-par rankings and rank medals.
+- ✅ Driving Range & Bay Booking Mode (`/range`, `/dashboard/range`): Bay configuration with TrackMan/launch monitor tags, duration-based reservation grid (30m, 60m, 90m, 120m), live bay status board with active session countdown timers, quick walk-in session allocator.
+- ⏳ Plugin/extension API & Webhooks (Planned)
+- ⏳ Public tenant directory polish (Planned)
 
 ## 🔑 Test Accounts
 

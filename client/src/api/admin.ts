@@ -17,6 +17,8 @@ export interface AdminBooking {
   partySize: number;
   status: "Confirmed" | "CheckedIn" | "Cancelled";
   price: number;
+  paymentStatus: "Unpaid" | "Paid" | "Refunded";
+  amountPaid: number;
 }
 
 export interface DashboardSummary {

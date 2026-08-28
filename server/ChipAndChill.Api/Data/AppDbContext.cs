@@ -21,6 +21,13 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid
     public DbSet<Round> Rounds => Set<Round>();
     public DbSet<RoundHole> RoundHoles => Set<RoundHole>();
     public DbSet<WaitlistEntry> WaitlistEntries => Set<WaitlistEntry>();
+    public DbSet<PricingRule> PricingRules => Set<PricingRule>();
+    public DbSet<Tournament> Tournaments => Set<Tournament>();
+    public DbSet<TournamentRegistration> TournamentRegistrations => Set<TournamentRegistration>();
+    public DbSet<TournamentScore> TournamentScores => Set<TournamentScore>();
+    public DbSet<RangeBay> RangeBays => Set<RangeBay>();
+    public DbSet<BayBooking> BayBookings => Set<BayBooking>();
+    public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -32,10 +39,19 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid
         builder.Entity<TeeSlot>().HasQueryFilter(s => CurrentTenantId == null || s.TenantId == CurrentTenantId);
         builder.Entity<Booking>().HasQueryFilter(b => CurrentTenantId == null || b.TenantId == CurrentTenantId);
         builder.Entity<Round>().HasQueryFilter(r => CurrentTenantId == null || r.TenantId == CurrentTenantId);
+        builder.Entity<PricingRule>().HasQueryFilter(p => CurrentTenantId == null || p.TenantId == CurrentTenantId);
+        builder.Entity<Tournament>().HasQueryFilter(t => CurrentTenantId == null || t.TenantId == CurrentTenantId);
+        builder.Entity<TournamentRegistration>().HasQueryFilter(r => CurrentTenantId == null || r.TenantId == CurrentTenantId);
+        builder.Entity<TournamentScore>().HasQueryFilter(s => CurrentTenantId == null || s.TenantId == CurrentTenantId);
+        builder.Entity<RangeBay>().HasQueryFilter(rb => CurrentTenantId == null || rb.TenantId == CurrentTenantId);
+        builder.Entity<BayBooking>().HasQueryFilter(bb => CurrentTenantId == null || bb.TenantId == CurrentTenantId);
 
         builder.Entity<Tenant>()
             .HasIndex(t => t.Subdomain)
             .IsUnique();
+
+        builder.Entity<Tenant>()
+            .HasIndex(t => t.CustomDomain);
 
         builder.Entity<CourseHole>()
             .HasIndex(h => new { h.TenantId, h.HoleNumber })
@@ -62,8 +78,40 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid
             .HasForeignKey(b => b.TeeSlotId)
             .OnDelete(DeleteBehavior.Cascade);
 
+        builder.Entity<Tournament>()
+            .HasMany(t => t.Registrations)
+            .WithOne(r => r.Tournament)
+            .HasForeignKey(r => r.TournamentId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.Entity<Tournament>()
+            .HasMany(t => t.Scores)
+            .WithOne(s => s.Tournament)
+            .HasForeignKey(s => s.TournamentId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.Entity<TournamentRegistration>()
+            .HasMany(r => r.Scores)
+            .WithOne(s => s.Registration)
+            .HasForeignKey(s => s.RegistrationId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.Entity<RangeBay>()
+            .HasMany(b => b.Bookings)
+            .WithOne(bk => bk.RangeBay)
+            .HasForeignKey(bk => bk.RangeBayId)
+            .OnDelete(DeleteBehavior.Cascade);
+
         builder.Entity<Booking>()
             .Property(b => b.Status)
+            .HasConversion<string>();
+
+        builder.Entity<Booking>()
+            .Property(b => b.PaymentStatus)
+            .HasConversion<string>();
+
+        builder.Entity<PricingRule>()
+            .Property(p => p.Days)
             .HasConversion<string>();
 
         builder.Entity<Tenant>()
@@ -73,6 +121,44 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid
         builder.Entity<ApplicationUser>()
             .Property(u => u.Role)
             .HasConversion<string>();
+
+        builder.Entity<Tournament>()
+            .Property(t => t.Format)
+            .HasConversion<string>();
+
+        builder.Entity<Tournament>()
+            .Property(t => t.Status)
+            .HasConversion<string>();
+
+        builder.Entity<TournamentRegistration>()
+            .Property(r => r.Status)
+            .HasConversion<string>();
+
+        builder.Entity<TournamentRegistration>()
+            .Property(r => r.PaymentStatus)
+            .HasConversion<string>();
+
+        builder.Entity<BayBooking>()
+            .Property(b => b.Status)
+            .HasConversion<string>();
+
+        builder.Entity<BayBooking>()
+            .Property(b => b.PaymentStatus)
+            .HasConversion<string>();
+
+        builder.Entity<RefreshToken>()
+            .HasIndex(r => r.Token)
+            .IsUnique();
+
+        builder.Entity<RefreshToken>()
+            .HasIndex(r => r.UserId);
+
+        builder.Entity<RefreshToken>()
+            .HasOne(r => r.User)
+            .WithMany()
+            .HasForeignKey(r => r.UserId)
+            .OnDelete(DeleteBehavior.Cascade);
     }
 }
+
 

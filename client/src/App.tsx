@@ -19,16 +19,33 @@ import StatsDashboard from "./pages/StatsDashboard";
 
 import Dashboard from "./pages/Dashboard";
 import TeeSheetManager from "./pages/TeeSheetManager";
+import PricingRules from "./pages/PricingRules";
 import BookingsManagement from "./pages/BookingsManagement";
 import CourseEditor from "./pages/CourseEditor";
+import BrandingSettings from "./pages/BrandingSettings";
+import PayoutSettings from "./pages/PayoutSettings";
 import StaffAccounts from "./pages/StaffAccounts";
 import CreateCourse from "./pages/CreateCourse";
+
+import Tournaments from "./pages/Tournaments";
+import TournamentDetail from "./pages/TournamentDetail";
+import RangeBooking from "./pages/RangeBooking";
+import TournamentManager from "./pages/TournamentManager";
+import RangeManager from "./pages/RangeManager";
+import GolferDirectory from "./pages/GolferDirectory";
 
 import SuperAdminDashboard from "./pages/SuperAdminDashboard";
 import SuperAdminTenants from "./pages/SuperAdminTenants";
 
 function RequireSuperAdmin({ children }: { children: React.ReactNode }) {
-  const { user } = useAuth();
+  const { user, isLoading } = useAuth();
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-fairway flex items-center justify-center text-white/80 font-mono text-sm">
+        Authenticating...
+      </div>
+    );
+  }
   if (!user) return <Navigate to="/login" replace />;
   if (user.role !== "SuperAdmin") return <Navigate to="/" replace />;
   return <>{children}</>;
@@ -44,6 +61,9 @@ export default function App() {
           <Route path="/courses" element={<CourseBrowse />} />
           <Route path="/courses/:id" element={<CourseProfile />} />
           <Route path="/booking" element={<Booking />} />
+          <Route path="/range" element={<RangeBooking />} />
+          <Route path="/tournaments" element={<Tournaments />} />
+          <Route path="/tournaments/:id" element={<TournamentDetail />} />
 
           {/* Auth & account */}
           <Route path="/login" element={<Login />} />
@@ -61,8 +81,14 @@ export default function App() {
           {/* Admin */}
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/dashboard/tee-sheet" element={<TeeSheetManager />} />
+          <Route path="/dashboard/tournaments" element={<TournamentManager />} />
+          <Route path="/dashboard/range" element={<RangeManager />} />
+          <Route path="/dashboard/golfers" element={<GolferDirectory />} />
+          <Route path="/dashboard/pricing" element={<PricingRules />} />
           <Route path="/dashboard/bookings" element={<BookingsManagement />} />
           <Route path="/dashboard/course" element={<CourseEditor />} />
+          <Route path="/dashboard/branding" element={<BrandingSettings />} />
+          <Route path="/dashboard/payouts" element={<PayoutSettings />} />
           <Route path="/dashboard/staff" element={<StaffAccounts />} />
           <Route path="/create-course" element={<CreateCourse />} />
 

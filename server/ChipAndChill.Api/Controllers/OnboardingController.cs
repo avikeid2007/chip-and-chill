@@ -16,6 +16,8 @@ public record CreateCourseRequest(
     string? Description,
     string Timezone,
     string? LogoUrl,
+    string? Currency,
+    string? CurrencySymbol,
     List<HoleSeedInput> Holes);
 public record HoleSeedInput(int HoleNumber, int Par, int YardageWhite);
 
@@ -49,6 +51,22 @@ public class OnboardingController : ControllerBase
         if (string.IsNullOrWhiteSpace(req.Name))
             return BadRequest("Course name is required.");
 
+        var currencyCode = string.IsNullOrWhiteSpace(req.Currency) ? "INR" : req.Currency.Trim().ToUpperInvariant();
+        var currencySymbol = !string.IsNullOrWhiteSpace(req.CurrencySymbol)
+            ? req.CurrencySymbol.Trim()
+            : currencyCode switch
+            {
+                "USD" => "$",
+                "EUR" => "€",
+                "GBP" => "£",
+                "AED" => "AED",
+                "CAD" => "C$",
+                "AUD" => "A$",
+                "SGD" => "S$",
+                "JPY" => "¥",
+                _ => "₹"
+            };
+
         var tenant = new Tenant
         {
             Id = Guid.NewGuid(),
@@ -57,6 +75,8 @@ public class OnboardingController : ControllerBase
             Address = req.Address,
             Description = req.Description,
             Timezone = string.IsNullOrWhiteSpace(req.Timezone) ? "UTC" : req.Timezone,
+            Currency = currencyCode,
+            CurrencySymbol = currencySymbol,
             LogoUrl = req.LogoUrl,
             CreatedAt = DateTime.UtcNow
         };
@@ -87,7 +107,7 @@ public class OnboardingController : ControllerBase
 
         await _db.SaveChangesAsync();
 
-        // Issue a fresh token so the client immediately has the tenant_id claim.
+        // Issue a fresh 15-minute access token so the client immediately has the tenant_id claim.
         var config = HttpContext.RequestServices.GetRequiredService<IConfiguration>();
         var jwtKey = config["Jwt:Key"]!;
         var key = new Microsoft.IdentityModel.Tokens.SymmetricSecurityKey(System.Text.Encoding.UTF8.GetBytes(jwtKey));
@@ -102,11 +122,33 @@ public class OnboardingController : ControllerBase
         };
 
         var token = new System.IdentityModel.Tokens.Jwt.JwtSecurityToken(
-            issuer: config["Jwt:Issuer"],
-            audience: config["Jwt:Audience"],
+            issuer: config["Jwt:Issuer"] ?? "ChipAndChill",
+            audience: config["Jwt:Audience"] ?? "ChipAndChillUsers",
             claims: claims,
-            expires: DateTime.UtcNow.AddMinutes(double.Parse(config["Jwt:ExpiryMinutes"] ?? "120")),
-            signingCredentials: creds);
+            expires: DateTime.UtcNow.AddMinutes(15),
+            signingCredentials: creds
+        );
+
+        // Also issue and attach HttpOnly refresh token cookie
+        var refreshTokenStr = Convert.ToBase64String(System.Security.Cryptography.RandomNumberGenerator.GetBytes(64));
+        var refreshToken = new RefreshToken
+        {
+            UserId = user.Id,
+            Token = refreshTokenStr,
+            ExpiresAt = DateTime.UtcNow.AddDays(30),
+            CreatedAt = DateTime.UtcNow
+        };
+        _db.RefreshTokens.Add(refreshToken);
+        await _db.SaveChangesAsync();
+
+        Response.Cookies.Append("refreshToken", refreshToken.Token, new CookieOptions
+        {
+            HttpOnly = true,
+            Expires = refreshToken.ExpiresAt,
+            SameSite = SameSiteMode.Lax,
+            Path = "/api/auth",
+            Secure = Request.IsHttps
+        });
 
         return Ok(new AuthResponse(
             new System.IdentityModel.Tokens.Jwt.JwtSecurityTokenHandler().WriteToken(token),

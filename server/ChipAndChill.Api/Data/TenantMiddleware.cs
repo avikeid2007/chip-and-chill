@@ -24,11 +24,30 @@ public class TenantMiddleware
         else
         {
             var host = context.Request.Host.Host;
-            var subdomain = host.Split('.').FirstOrDefault();
-            if (!string.IsNullOrEmpty(subdomain) && subdomain != "www" && subdomain != "api")
+            if (!string.IsNullOrEmpty(host) && host != "localhost" && host != "127.0.0.1")
             {
-                var tenant = db.Tenants.FirstOrDefault(t => t.Subdomain == subdomain);
-                if (tenant != null) db.CurrentTenantId = tenant.Id;
+                var lowerHost = host.ToLowerInvariant();
+
+                // 1. Direct match on CustomDomain (e.g., "pinehillgolf.com" or "play.pinehill.com")
+                var customTenant = db.Tenants.FirstOrDefault(t => t.CustomDomain != null && t.CustomDomain.ToLower() == lowerHost);
+                if (customTenant != null)
+                {
+                    db.CurrentTenantId = customTenant.Id;
+                }
+                else
+                {
+                    // 2. Subdomain check (e.g., "pinehill.chipandchill.com" -> "pinehill")
+                    var parts = lowerHost.Split('.');
+                    if (parts.Length > 1)
+                    {
+                        var subdomain = parts[0];
+                        if (subdomain != "www" && subdomain != "api" && subdomain != "app")
+                        {
+                            var tenant = db.Tenants.FirstOrDefault(t => t.Subdomain != null && t.Subdomain.ToLower() == subdomain);
+                            if (tenant != null) db.CurrentTenantId = tenant.Id;
+                        }
+                    }
+                }
             }
         }
 

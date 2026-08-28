@@ -21,6 +21,13 @@ public enum BookingStatus
     Cancelled
 }
 
+public enum PaymentStatus
+{
+    Unpaid,
+    Paid,
+    Refunded
+}
+
 public class Booking
 {
     public Guid Id { get; set; } = Guid.NewGuid();
@@ -35,6 +42,10 @@ public class Booking
 
     public int PartySize { get; set; } = 1;
     public BookingStatus Status { get; set; } = BookingStatus.Confirmed;
+    public PaymentStatus PaymentStatus { get; set; } = PaymentStatus.Unpaid;
+    public string? PaymentIntentId { get; set; }
+    public decimal AmountPaid { get; set; } = 0;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }
+
 

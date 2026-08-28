@@ -5,6 +5,7 @@ import { useAuth } from "../api/AuthContext";
 import { roundsApi } from "../api/rounds";
 import { courseApi, type CourseHole } from "../api/course";
 import { apiFetch } from "../api/client";
+import { toDateInput } from "../utils/time";
 
 function scoreToParLabel(diff: number): string {
   if (diff === 0) return "E";
@@ -73,7 +74,7 @@ export default function ScorecardEntry() {
   const [holes, setHoles] = useState<CourseHole[]>([]);
   const [scores, setScores] = useState<(number | null)[]>([]);
   const [teeBox, setTeeBox] = useState("White");
-  const [playedOn, setPlayedOn] = useState(() => new Date().toISOString().slice(0, 10));
+  const [playedOn, setPlayedOn] = useState(() => toDateInput(new Date()));
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();

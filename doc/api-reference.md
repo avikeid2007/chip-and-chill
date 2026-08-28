@@ -130,6 +130,30 @@ Base URL: `http://localhost:5000`
 
 ---
 
+## Pricing Rules — `/api/tenants/{tenantId}/pricing-rules` 🔒 CourseAdmin+
+
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| GET | `/` | 🔒 Admin | List all pricing rules for tenant |
+| POST | `/` | 🔒 Admin | Create rule: `{ name, days, startTime?, endTime?, price, priority, isActive }` |
+| PUT | `/{id}` | 🔒 Admin | Partial or full update of pricing rule |
+| DELETE | `/{id}` | 🔒 Admin | Remove pricing rule |
+| POST | `../pricing/preview` | — | Calculate dynamic price preview: `{ slotTime, basePrice? }` |
+
+---
+
+## Payments & Stripe Connect — `/api/tenants/{tenantId}` 
+
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| POST | `/stripe/connect-link` | 🔒 Admin | Generate Stripe Connect Express onboarding URL |
+| GET | `/stripe/status` | 🔒 Admin | Get connected Stripe account status & charges/payouts flags |
+| POST | `/bookings/{id}/checkout` | 🔒 Golfer+ | Initiate Stripe Checkout session for a booking |
+| POST | `/bookings/{id}/confirm-sandbox-payment` | 🔒 Golfer+ | Complete instant payment in Sandbox mode: `{ cardHolderName?, cardNumberLast4? }` |
+| POST | `/bookings/{id}/refund` | 🔒 Admin | Process full refund for a paid booking |
+
+---
+
 ## Error Format
 
 Validation failures return RFC 7807 problem details:
@@ -144,3 +168,4 @@ Validation failures return RFC 7807 problem details:
 ```
 
 Common status codes: 400 (validation/business rule), 401 (no/bad token), 403 (wrong role), 404 (not found), 409 (duplicate — e.g., already on waitlist).
+

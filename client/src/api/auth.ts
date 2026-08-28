@@ -23,6 +23,7 @@ export const authApi = {
   login: (email: string, password: string) =>
     fetch(`${API_BASE}/api/auth/login`, {
       method: "POST",
+      credentials: "include",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email, password }),
     }).then((res) => handle<AuthResponse>(res)),
@@ -37,7 +38,35 @@ export const authApi = {
   }) =>
     fetch(`${API_BASE}/api/auth/register`, {
       method: "POST",
+      credentials: "include",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(data),
     }).then((res) => handle<AuthResponse>(res)),
+
+  refresh: () =>
+    fetch(`${API_BASE}/api/auth/refresh`, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+    }).then((res) => handle<AuthResponse>(res)),
+
+  logout: () =>
+    fetch(`${API_BASE}/api/auth/logout`, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+    }).then(async (res) => {
+      if (!res.ok) return { message: "Logged out" };
+      return res.json().catch(() => ({ message: "Logged out" }));
+    }),
+
+  me: (token: string) =>
+    fetch(`${API_BASE}/api/auth/me`, {
+      method: "GET",
+      credentials: "include",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+    }).then((res) => handle<any>(res)),
 };

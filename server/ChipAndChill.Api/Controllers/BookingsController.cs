@@ -16,11 +16,19 @@ public class BookingsController : ControllerBase
 {
     private readonly AppDbContext _db;
     private readonly IEmailSender _emailSender;
+    private readonly IPricingEngine _pricingEngine;
+    private readonly IPaymentService _paymentService;
 
-    public BookingsController(AppDbContext db, IEmailSender emailSender)
+    public BookingsController(
+        AppDbContext db,
+        IEmailSender emailSender,
+        IPricingEngine pricingEngine,
+        IPaymentService paymentService)
     {
         _db = db;
         _emailSender = emailSender;
+        _pricingEngine = pricingEngine;
+        _paymentService = paymentService;
     }
 
     // GET /api/tenants/{tenantId}/tee-slots?date=2026-08-25[&includeBlocked=true]
@@ -55,12 +63,18 @@ public class BookingsController : ControllerBase
     [TenantScoped]
     public async Task<ActionResult<TeeSlot>> CreateTeeSlot(Guid tenantId, CreateTeeSlotRequest req)
     {
+        var slotPrice = req.Price;
+        if (slotPrice <= 0)
+        {
+            slotPrice = await _pricingEngine.CalculatePriceAsync(tenantId, req.StartTime, 50.00m);
+        }
+
         var slot = new TeeSlot
         {
             TenantId = tenantId,
             StartTime = req.StartTime,
             MaxPlayers = req.MaxPlayers,
-            Price = req.Price
+            Price = slotPrice
         };
         _db.TeeSlots.Add(slot);
         await _db.SaveChangesAsync();
@@ -69,7 +83,7 @@ public class BookingsController : ControllerBase
 
     [HttpPost("bookings")]
     [Authorize]
-    public async Task<ActionResult<Booking>> CreateBooking(Guid tenantId, CreateBookingRequest req)
+    public async Task<ActionResult<BookingResponse>> CreateBooking(Guid tenantId, CreateBookingRequest req)
     {
         var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (userIdClaim == null || !Guid.TryParse(userIdClaim, out var userId))
@@ -92,33 +106,45 @@ public class BookingsController : ControllerBase
             TeeSlotId = req.TeeSlotId,
             UserId = userId,
             PartySize = req.PartySize,
-            Status = BookingStatus.Confirmed
+            Status = BookingStatus.Confirmed,
+            PaymentStatus = PaymentStatus.Unpaid,
+            AmountPaid = 0
         };
         _db.Bookings.Add(booking);
         await _db.SaveChangesAsync();
+
+        var totalPrice = slot.Price * req.PartySize;
 
         // Booking confirmation email (provider-agnostic; Console in dev).
         var booker = await _db.Users.IgnoreQueryFilters().FirstOrDefaultAsync(u => u.Id == userId);
         if (booker?.Email != null)
         {
+            var tenant = await _db.Tenants.FindAsync(tenantId);
+            var symbol = tenant?.CurrencySymbol ?? "₹";
+
             await _emailSender.SendAsync(new EmailMessage(
                 booker.Email,
                 $"Tee time confirmed — {slot.StartTime:MMM d, h:mm tt}",
                 $"Hi {booker.FirstName},\n\n" +
                 $"Your tee time is confirmed for {slot.StartTime:f} (UTC).\n" +
-                $"Party size: {req.PartySize}\nPrice: ${slot.Price} per player\n\n" +
+                $"Party size: {req.PartySize}\nPrice: {symbol}{slot.Price:F2} per player (Total: {symbol}{totalPrice:F2})\n\n" +
                 "See you at the first tee!\n— Chip & Chill"));
         }
 
-        // Return a flat DTO — serializing the entity would cycle through
-        // TeeSlot.Bookings and blow up with a 500.
         return Created($"/api/tenants/{tenantId}/bookings/{booking.Id}",
-            new BookingResponse(booking.Id, booking.TeeSlotId, booking.PartySize, booking.Status.ToString()));
+            new BookingResponse(
+                booking.Id,
+                booking.TeeSlotId,
+                booking.PartySize,
+                booking.Status.ToString(),
+                booking.PaymentStatus.ToString(),
+                booking.AmountPaid,
+                totalPrice));
     }
 
     [HttpGet("bookings/mine")]
     [Authorize]
-    public async Task<ActionResult<IEnumerable<Booking>>> GetMyBookings(Guid tenantId)
+    public async Task<ActionResult<IEnumerable<MyBookingResponse>>> GetMyBookings(Guid tenantId)
     {
         var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (userIdClaim == null || !Guid.TryParse(userIdClaim, out var userId))
@@ -137,7 +163,9 @@ public class BookingsController : ControllerBase
             b.PartySize,
             b.Status.ToString(),
             b.TeeSlot?.StartTime ?? DateTime.MinValue,
-            b.TeeSlot?.Price ?? 0)));
+            b.TeeSlot?.Price ?? 0,
+            b.PaymentStatus.ToString(),
+            b.AmountPaid)));
     }
 
     [HttpPost("bookings/{bookingId:guid}/cancel")]
@@ -145,11 +173,35 @@ public class BookingsController : ControllerBase
     public async Task<IActionResult> CancelBooking(Guid tenantId, Guid bookingId)
     {
         var booking = await _db.Bookings.IgnoreQueryFilters()
+            .Include(b => b.User)
+            .Include(b => b.TeeSlot)
+            .Include(b => b.Tenant)
             .FirstOrDefaultAsync(b => b.Id == bookingId && b.TenantId == tenantId);
         if (booking == null) return NotFound();
 
+        var wasPaid = booking.PaymentStatus == PaymentStatus.Paid;
+        var paidAmount = booking.AmountPaid;
+
         booking.Status = BookingStatus.Cancelled;
+
+        if (wasPaid)
+        {
+            await _paymentService.ProcessRefundAsync(booking);
+        }
+
         await _db.SaveChangesAsync();
+
+        if (wasPaid && booking.User?.Email != null)
+        {
+            var symbol = booking.Tenant?.CurrencySymbol ?? "₹";
+            await _emailSender.SendAsync(new EmailMessage(
+                booking.User.Email,
+                $"Booking Cancelled & Refunded — {symbol}{paidAmount:F2}",
+                $"Hi {booking.User.FirstName},\n\n" +
+                $"Your booking for {booking.TeeSlot?.StartTime:MMM d, h:mm tt} has been cancelled.\n" +
+                $"A full refund of {symbol}{paidAmount:F2} has been initiated to your original payment method.\n\n" +
+                "— Chip & Chill"));
+        }
 
         // Waitlist auto-notify: email the earliest active waitlist entry for this slot.
         var nextInLine = await _db.WaitlistEntries
@@ -175,6 +227,7 @@ public class BookingsController : ControllerBase
 
         return NoContent();
     }
+
 
     // ---- Waitlist ----
 
@@ -290,7 +343,9 @@ public class BookingsController : ControllerBase
             $"{b.User?.FirstName} {b.User?.LastName}".Trim(),
             b.PartySize,
             b.Status,
-            b.TeeSlot?.Price ?? 0)));
+            b.TeeSlot?.Price ?? 0,
+            b.PaymentStatus,
+            b.AmountPaid)));
     }
 
     // POST /api/tenants/{tenantId}/bookings/{bookingId}/check-in

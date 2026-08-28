@@ -3,17 +3,9 @@ import NavBar from "../components/NavBar";
 import { useAuth } from "../api/AuthContext";
 import { bookingsApi, type Booking } from "../api/bookings";
 import { apiFetch } from "../api/client";
+import { formatTime } from "../utils/time";
 
 type DisplayStatus = "Upcoming" | "Completed" | "Cancelled";
-
-function formatTime(iso: string): string {
-  const d = new Date(iso);
-  const h = d.getHours();
-  const m = d.getMinutes().toString().padStart(2, "0");
-  const ampm = h >= 12 ? "p" : "a";
-  const h12 = h % 12 === 0 ? 12 : h % 12;
-  return `${h12}:${m}${ampm}`;
-}
 
 export default function MyBookings() {
   const { user } = useAuth();
@@ -100,23 +92,48 @@ export default function MyBookings() {
           ) : (
             bookings.map((b) => {
               const status = displayStatus(b);
+              const isPaid = b.paymentStatus === "Paid";
+              const isRefunded = b.paymentStatus === "Refunded";
+
               return (
-                <div key={b.id} className="flex items-center justify-between px-6 py-4 border-b border-[#EEF1ED] last:border-b-0 row-hover">
+                <div key={b.id} className="flex flex-col sm:flex-row sm:items-center justify-between px-6 py-4 border-b border-[#EEF1ED] last:border-b-0 row-hover gap-3">
                   <div>
-                    <p className="font-medium text-fairway">{b.course ?? "Course"}</p>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="font-medium text-fairway">{b.course ?? "Course"}</p>
+                      {isPaid ? (
+                        <span className="text-[11px] px-2 py-0.5 rounded-full bg-green-100 text-green-800 font-medium">
+                          ✓ Paid ₹{((b.price ?? b.teeSlot?.price ?? 50) * b.partySize).toFixed(2)}
+                        </span>
+                      ) : isRefunded ? (
+                        <span className="text-[11px] px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 font-medium">
+                          Refunded
+                        </span>
+                      ) : (
+                        <span className="text-[11px] px-2 py-0.5 rounded-full bg-sand text-fairway/70">
+                          Pay at pro shop
+                        </span>
+                      )}
+                    </div>
                     <p className="text-mono text-xs text-ink-soft mt-1">
                       {b.teeSlot ? `${new Date(b.teeSlot.startTime).toLocaleDateString()} · ${formatTime(b.teeSlot.startTime)} · ` : ""}
                       {b.partySize} {b.partySize === 1 ? "player" : "players"}
                     </p>
                   </div>
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-3 self-end sm:self-center">
                     <span className={`pill ${status === "Upcoming" ? "pill-green" : status === "Cancelled" ? "pill-red" : "pill-gray"}`}>{status}</span>
                     {status === "Upcoming" && (
                       <button
-                        onClick={() => cancelBooking(b.id)}
+                        onClick={() => {
+                          const confirmText = isPaid
+                            ? "Are you sure you want to cancel? Your payment will be automatically refunded."
+                            : "Are you sure you want to cancel this booking?";
+                          if (confirm(confirmText)) {
+                            cancelBooking(b.id);
+                          }
+                        }}
                         className="text-xs font-medium text-[#C0533F] hover:underline"
                       >
-                        Cancel
+                        Cancel {isPaid ? "& Refund" : ""}
                       </button>
                     )}
                   </div>

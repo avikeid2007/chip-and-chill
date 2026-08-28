@@ -3,6 +3,7 @@ import AdminLayout from "../components/AdminLayout";
 import { useAuth } from "../api/AuthContext";
 import { adminApi } from "../api/admin";
 import { apiFetch } from "../api/client";
+import { toDateInput, formatDateLabel, formatTime, toSlotIsoString } from "../utils/time";
 import NoCourse from "../components/NoCourse";
 
 interface Slot {
@@ -14,33 +15,14 @@ interface Slot {
   blocked: boolean;
 }
 
-function formatTime(iso: string): string {
-  const d = new Date(iso);
-  const h = d.getHours();
-  const m = d.getMinutes().toString().padStart(2, "0");
-  const ampm = h >= 12 ? "p" : "a";
-  const h12 = h % 12 === 0 ? 12 : h % 12;
-  return `${h12}:${m}${ampm}`;
-}
-
-function toDateInput(d: Date): string {
-  return d.toISOString().slice(0, 10);
-}
-
-function formatDateLabel(dateStr: string): string {
-  const today = toDateInput(new Date());
-  if (dateStr === today) return "Today";
-  const d = new Date(`${dateStr}T00:00:00`);
-  return d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
-}
-
 export default function TeeSheetManager() {
   const { user } = useAuth();
   const [date, setDate] = useState(() => toDateInput(new Date()));
   const [slots, setSlots] = useState<Slot[]>([]);
+  const [currencySymbol, setCurrencySymbol] = useState("₹");
   const [loading, setLoading] = useState(true);
   const [newTime, setNewTime] = useState("");
-  const [newPrice, setNewPrice] = useState(45);
+  const [newPrice, setNewPrice] = useState(500);
   const [error, setError] = useState<string | null>(null);
 
   async function loadSlots() {
@@ -68,14 +50,22 @@ export default function TeeSheetManager() {
   }
 
   useEffect(() => {
+    if (user?.tenantId) {
+      apiFetch<{ currencySymbol?: string }>(`/api/tenants/${user.tenantId}`, {}, user.token, user.tenantId)
+        .then((t) => {
+          if (t.currencySymbol) setCurrencySymbol(t.currencySymbol);
+        })
+        .catch(() => {});
+    }
     loadSlots();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.tenantId, date]);
 
   function shiftDate(days: number) {
-    const d = new Date(`${date}T00:00:00`);
-    d.setDate(d.getDate() + days);
-    setDate(toDateInput(d));
+    const [y, m, d] = date.split("-").map(Number);
+    const dt = new Date(y, m - 1, d);
+    dt.setDate(dt.getDate() + days);
+    setDate(toDateInput(dt));
   }
 
   async function toggleBlock(id: string, currentlyBlocked: boolean) {
@@ -96,7 +86,7 @@ export default function TeeSheetManager() {
         `/api/tenants/${user.tenantId}/tee-slots`,
         {
           method: "POST",
-          body: JSON.stringify({ startTime: new Date(`${date}T${newTime}`).toISOString(), maxPlayers: 4, price: newPrice }),
+          body: JSON.stringify({ startTime: toSlotIsoString(date, newTime), maxPlayers: 4, price: newPrice }),
         },
         user.token,
         user.tenantId
@@ -166,7 +156,7 @@ export default function TeeSheetManager() {
                 <span className="text-mono font-medium">{formatTime(s.startTime)}</span>
                 <span className="text-ink-soft">{s.booked} / {s.maxPlayers} players</span>
                 <span className={`pill w-fit ${pillClass}`}>{statusLabel}</span>
-                <span className="text-mono text-sand">${s.price}</span>
+                <span className="text-mono text-sand">{currencySymbol}{s.price}</span>
                 <button
                   onClick={() => toggleBlock(s.id, s.blocked)}
                   className="text-xs font-medium text-turf hover:underline text-left"
@@ -193,12 +183,12 @@ export default function TeeSheetManager() {
             />
           </div>
           <div>
-            <label className="label">Price</label>
+            <label className="label">Price ({currencySymbol})</label>
             <input
               type="number"
               value={newPrice}
               onChange={(e) => setNewPrice(Number(e.target.value))}
-              className="border border-line rounded-md px-3 py-2 text-sm w-24"
+              className="border border-line rounded-md px-3 py-2 text-sm w-24 font-mono"
             />
           </div>
           <button type="submit" className="btn-primary">

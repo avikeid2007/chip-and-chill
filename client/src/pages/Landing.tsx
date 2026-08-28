@@ -4,6 +4,7 @@ import TeeTicker from "../components/TeeTicker";
 import Scorecard from "../components/Scorecard";
 import Leaderboard from "../components/Leaderboard";
 import { apiFetch } from "../api/client";
+import { toDateInput, formatTime } from "../utils/time";
 import type { TeeSlot, ScorecardHole, LeaderboardEntry } from "../types";
 
 const demoSlots: TeeSlot[] = [
@@ -44,7 +45,7 @@ export default function Landing() {
       try {
         const tenants = await apiFetch<{ id: string; name: string }[]>("/api/tenants");
         if (tenants.length === 0) return;
-        const today = new Date().toISOString().slice(0, 10);
+        const today = toDateInput(new Date());
         for (const tenant of tenants) {
           const slots = await apiFetch<
             { id: string; startTime: string; maxPlayers: number; playersBooked: number; price: number; status: string }[]
@@ -54,7 +55,7 @@ export default function Landing() {
             setHeroSlots(
               slots.slice(0, 5).map((s) => ({
                 id: s.id,
-                time: new Date(s.startTime).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }),
+                time: formatTime(s.startTime),
                 playersBooked: s.playersBooked,
                 playersMax: s.maxPlayers,
                 price: s.price,

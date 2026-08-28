@@ -3,6 +3,8 @@ import { Link, useParams } from "react-router-dom";
 import NavBar from "../components/NavBar";
 import { courseApi, type CourseHole, type Tenant } from "../api/course";
 
+const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000";
+
 export default function CourseProfile() {
   const { id } = useParams<{ id: string }>();
   const [tab, setTab] = useState<"overview" | "holes">("overview");
@@ -40,7 +42,16 @@ export default function CourseProfile() {
           <div className="text-mono text-xs tracking-widest uppercase text-sand mb-3">
             {tenant?.address || "Golf course"} · {holes.length} holes
           </div>
-          <h1 className="text-4xl font-semibold tracking-tight text-white mb-3">{tenant?.name || "Loading…"}</h1>
+          <div className="flex items-center gap-4 mb-3">
+            {tenant?.logoUrl && (
+              <img
+                src={`${API_BASE}${tenant.logoUrl}`}
+                alt={`${tenant.name} logo`}
+                className="w-14 h-14 rounded-md object-contain bg-white/10 p-1"
+              />
+            )}
+            <h1 className="text-4xl font-semibold tracking-tight text-white">{tenant?.name || "Loading…"}</h1>
+          </div>
           <p className="text-white/75 max-w-lg">{tenant?.description}</p>
         </div>
       </div>
@@ -70,7 +81,7 @@ export default function CourseProfile() {
               <div className="flex justify-between"><span className="text-ink-soft">Par</span><span className="font-medium">{totalPar}</span></div>
               <div className="flex justify-between"><span className="text-ink-soft">Yardage</span><span className="font-medium">{totalYardage.toLocaleString()}</span></div>
               <div className="flex justify-between"><span className="text-ink-soft">Holes</span><span className="font-medium">{holes.length}</span></div>
-              <Link to="/booking" className="block text-center bg-gold text-fairway px-4 py-2.5 rounded-[3px] font-semibold text-sm mt-2">
+              <Link to={`/booking?tenantId=${id}`} className="block text-center bg-gold text-fairway px-4 py-2.5 rounded-[3px] font-semibold text-sm mt-2">
                 Book a Tee Time
               </Link>
             </div>

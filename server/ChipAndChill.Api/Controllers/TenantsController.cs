@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using ChipAndChill.Api.Data;
+using ChipAndChill.Api.DTOs;
 using ChipAndChill.Api.Models;
 using ChipAndChill.Api.Security;
 using System.Security.Claims;
@@ -35,6 +36,54 @@ public class TenantsController : ControllerBase
         return Ok(await query.OrderBy(t => t.Name).ToListAsync());
     }
 
+    [HttpGet("resolve")]
+    [AllowAnonymous]
+    public async Task<ActionResult<ResolvedTenantResponse>> Resolve([FromQuery] string? host)
+    {
+        if (string.IsNullOrWhiteSpace(host))
+        {
+            host = Request.Host.Host;
+        }
+
+        var lowerHost = host.Trim().ToLowerInvariant();
+
+        // 1. Check custom domain directly
+        var tenant = await _db.Tenants
+            .FirstOrDefaultAsync(t => t.IsActive && t.CustomDomain != null && t.CustomDomain.ToLower() == lowerHost);
+
+        // 2. Check subdomain
+        if (tenant == null)
+        {
+            var parts = lowerHost.Split('.');
+            if (parts.Length > 0)
+            {
+                var sub = parts[0];
+                if (sub != "www" && sub != "api" && sub != "app" && sub != "localhost" && sub != "127")
+                {
+                    tenant = await _db.Tenants
+                        .FirstOrDefaultAsync(t => t.IsActive && t.Subdomain != null && t.Subdomain.ToLower() == sub);
+                }
+            }
+        }
+
+        if (tenant == null) return NotFound(new { message = "No matching tenant found for host." });
+
+        return Ok(new ResolvedTenantResponse(
+            tenant.Id,
+            tenant.Name,
+            tenant.Subdomain,
+            tenant.CustomDomain,
+            tenant.LogoUrl,
+            tenant.PrimaryColor,
+            tenant.RequirePaymentUpfront,
+            tenant.StripeChargesEnabled,
+            tenant.Timezone,
+            tenant.Currency,
+            tenant.CurrencySymbol,
+            tenant.Address,
+            tenant.Description));
+    }
+
     [HttpGet("{id:guid}")]
     [AllowAnonymous]
     public async Task<ActionResult<Tenant>> GetById(Guid id)
@@ -50,6 +99,8 @@ public class TenantsController : ControllerBase
     {
         tenant.Id = Guid.NewGuid();
         tenant.CreatedAt = DateTime.UtcNow;
+        if (string.IsNullOrWhiteSpace(tenant.Currency)) tenant.Currency = "INR";
+        if (string.IsNullOrWhiteSpace(tenant.CurrencySymbol)) tenant.CurrencySymbol = "₹";
         _db.Tenants.Add(tenant);
 
         // Link the creator to the tenant as its Course Admin (if they aren't
@@ -74,17 +125,65 @@ public class TenantsController : ControllerBase
     [HttpPut("{id:guid}")]
     [Authorize(Roles = "CourseAdmin,SuperAdmin")]
     [TenantScoped("id")]
-    public async Task<IActionResult> Update(Guid id, Tenant updated)
+    public async Task<IActionResult> Update(Guid id, UpdateTenantRequest updated)
     {
         var tenant = await _db.Tenants.FindAsync(id);
         if (tenant == null) return NotFound();
 
-        tenant.Name = updated.Name;
-        tenant.Description = updated.Description;
-        tenant.Address = updated.Address;
-        tenant.LogoUrl = updated.LogoUrl;
-        tenant.PrimaryColor = updated.PrimaryColor;
-        tenant.Timezone = updated.Timezone;
+        if (updated.Subdomain != null)
+        {
+            var normalized = updated.Subdomain.Trim().ToLowerInvariant();
+            if (normalized.Length > 0)
+            {
+                var taken = await _db.Tenants.AnyAsync(t => t.Id != id && t.Subdomain == normalized);
+                if (taken) return Conflict(new { message = "That subdomain is already taken." });
+            }
+            tenant.Subdomain = normalized.Length > 0 ? normalized : null;
+        }
+
+        if (updated.CustomDomain != null)
+        {
+            var normalized = updated.CustomDomain.Trim().ToLowerInvariant();
+            if (normalized.Length > 0)
+            {
+                var taken = await _db.Tenants.AnyAsync(t => t.Id != id && t.CustomDomain == normalized);
+                if (taken) return Conflict(new { message = "That custom domain is already linked to another course." });
+            }
+            tenant.CustomDomain = normalized.Length > 0 ? normalized : null;
+        }
+
+        if (updated.RequirePaymentUpfront.HasValue)
+            tenant.RequirePaymentUpfront = updated.RequirePaymentUpfront.Value;
+
+        if (updated.Currency != null)
+        {
+            tenant.Currency = updated.Currency.Trim().ToUpperInvariant();
+            tenant.CurrencySymbol = !string.IsNullOrWhiteSpace(updated.CurrencySymbol)
+                ? updated.CurrencySymbol.Trim()
+                : tenant.Currency switch
+                {
+                    "USD" => "$",
+                    "EUR" => "€",
+                    "GBP" => "£",
+                    "AED" => "AED",
+                    "CAD" => "C$",
+                    "AUD" => "A$",
+                    "SGD" => "S$",
+                    "JPY" => "¥",
+                    _ => "₹"
+                };
+        }
+        else if (updated.CurrencySymbol != null)
+        {
+            tenant.CurrencySymbol = updated.CurrencySymbol.Trim();
+        }
+
+        if (updated.Name != null) tenant.Name = updated.Name;
+        if (updated.Description != null) tenant.Description = updated.Description;
+        if (updated.Address != null) tenant.Address = updated.Address;
+        if (updated.LogoUrl != null) tenant.LogoUrl = updated.LogoUrl;
+        if (updated.PrimaryColor != null) tenant.PrimaryColor = updated.PrimaryColor;
+        if (updated.Timezone != null) tenant.Timezone = updated.Timezone;
 
         await _db.SaveChangesAsync();
         return NoContent();

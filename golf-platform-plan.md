@@ -98,17 +98,24 @@ opengolf/
 - Handicap calculation
 - Round history/stats dashboard
 
-**Phase 3 — Multi-tenant polish**
-- Tenant onboarding flow
-- Custom branding/domains
-- Payments (Stripe Connect)
-- Pricing rules engine
-- Tournament registration payments (ties into Stripe Connect above)
+**Phase 3 — Multi-tenant polish (COMPLETE)**
+- ✅ Tenant onboarding flow (`/create-course` wizard, logo upload, links creator as admin)
+- ✅ Super Admin tenant list/suspend + platform stats dashboard
+- ✅ Cross-tenant authorization hardening (`[TenantScoped]` route-param filter)
+- ✅ Branding settings page (logo, brand color, subdomain, custom domain CNAME guide, course currency) — `/dashboard/branding`
+- ✅ Multi-Currency Support (configured per tenant, defaulting to `INR` `₹ / ₨` with dynamic formatting across booking, pricing rules, checkouts, and receipts)
+- ✅ Custom domain routing (hostname resolution middleware + `GET /api/tenants/resolve`)
+- ✅ Pricing rules engine (peak/off-peak, weekend/weekday, twilight rates, dynamic preview & simulator) — `/dashboard/pricing`
+- ✅ Payments (Stripe Connect Express onboarding, direct payout routing, online booking checkout, auto-refunds) — `/dashboard/payouts`
+- ✅ Tournament registration payments foundation (shared checkout engine ready for Module G)
+
+
 
 **Phase 4 — Tournaments, range mode & community**
-- Tournament & league module (registration, pairings, live leaderboards)
-- Driving range/bay booking variant
-- Plugin/extension API
+- ✅ Tournament & league module (creation, registration, entry fee checkout, auto-pairings, live leaderboard) — `/tournaments`, `/tournaments/:id`, `/dashboard/tournaments`
+- ✅ Driving range & bay booking mode (bay setup, duration reservations, live bay status board, active session countdown timers) — `/range`, `/dashboard/range`
+- ✅ Golfer & Member Directory (searchable member list, handicap profiles, booking history, tournament entries, lifetime spend) — `/dashboard/golfers`
+- Plugin/extension API & Webhooks
 - Public tenant directory ("find a course near me")
 
 ## 10. Detailed Module → Page → Feature Breakdown
@@ -231,28 +238,35 @@ Explicitly out of MVP: payments, waitlists, pricing rules engine, range/bay mode
 
 ## 13. MVP Build Checklist
 
-Tracks implementation status of every MVP page. Frontend pages are built with mock/demo data and matching design system; wiring to live API endpoints happens as each page is connected during backend integration testing.
+Tracks implementation status of every MVP page, plus Phase 2/3 additions built since.
 
 | Module | Page | Frontend UI | Wired to API | Notes |
 |---|---|---|---|---|
 | Auth | Sign up | ✅ Built | ✅ `authApi.register` | `/register` |
 | Auth | Log in | ✅ Built | ✅ `authApi.login` | `/login` |
-| Auth | Forgot/reset password | ✅ Built | ⬜ Not wired | `/forgot-password` — needs `POST /api/auth/forgot-password` on backend (not yet built) |
-| Auth | Profile settings | ✅ Built | ⬜ Not wired | `/profile` — needs `PUT /api/users/me` on backend (not yet built) |
-| Course Info | Course profile (public) | ✅ Built | ⬜ Mock data | `/courses/:id` — needs wiring to `courseApi.getTenant` + `getHoles` |
-| Course Info | Course info editor (admin) | ✅ Built | ⬜ Mock data | `/dashboard/course` — needs wiring to `courseApi.saveHoles` + `updateTenant` |
-| Booking | Availability calendar / book a slot | ✅ Built | ⬜ Mock data | `/booking` — needs wiring to live `GET /api/tenants/{id}/tee-slots` + `POST .../bookings` |
-| Booking | My bookings | ✅ Built | ⬜ Mock data | `/bookings` — needs wiring to `bookingsApi.mine` + `cancel` |
-| Booking | Admin: tee sheet manager | ✅ Built | ⬜ Mock data | `/dashboard/tee-sheet` — needs `POST .../tee-slots` + a block/unblock endpoint (not yet built) |
-| Scorecards | Digital scorecard entry | ✅ Built | ⬜ Mock data | `/rounds/new` — needs wiring to `roundsApi.create` |
-| Scorecards | Round history | ✅ Built | ⬜ Mock data | `/rounds` — needs wiring to `roundsApi.mine` |
-| Scorecards | Round detail view | ✅ Built | ⬜ Mock data | `/rounds/:id` — needs wiring to `roundsApi.getById` |
-| Admin Dashboard | Dashboard home | ✅ Built | ⬜ Mock data | `/dashboard` — needs a stats/summary endpoint (not yet built) |
-| Admin Dashboard | Bookings management | ✅ Built | ⬜ Mock data | `/dashboard/bookings` — needs a tenant-wide bookings list endpoint (currently only "mine" exists) |
-| Admin Dashboard | Staff accounts | ✅ Built | ⬜ Mock data | `/dashboard/staff` — needs staff invite/list/remove endpoints (not yet built) |
+| Auth | Forgot/reset password | ✅ Built | ✅ `authApiExtended.forgotPassword` / `resetPassword` | `/forgot-password` |
+| Auth | Profile settings | ✅ Built | ✅ `usersApi.me` / `updateMe` | `/profile` |
+| Course Info | Course profile (public) | ✅ Built | ✅ `courseApi.getTenant` + `getHoles` | `/courses/:id` — now shows tenant logo |
+| Course Info | Course info editor (admin) | ✅ Built | ✅ `courseApi.saveHoles` + `updateTenant` | `/dashboard/course` |
+| Course Info | Branding settings (admin) | ✅ Built | ✅ `courseApi.updateTenant` | `/dashboard/branding` — logo, brand color, subdomain, custom domain (Phase 3) |
+| Booking | Availability calendar / book a slot | ✅ Built | ✅ live `GET .../tee-slots` + `POST .../bookings` | `/booking` — includes waitlist join & Stripe/Sandbox checkout (Phase 3) |
+| Booking | My bookings | ✅ Built | ✅ `bookingsApi.mine` + `cancel` | `/bookings` — includes payment status & auto-refunds (Phase 3) |
+| Booking | Admin: tee sheet manager | ✅ Built | ✅ `POST .../tee-slots` + block/unblock | `/dashboard/tee-sheet` |
+| Booking | Admin: pricing rules manager | ✅ Built | ✅ `pricingApi.*` CRUD + preview | `/dashboard/pricing` — dynamic weekend/twilight rules & simulator (Phase 3) |
+| Scorecards | Digital scorecard entry | ✅ Built | ✅ `roundsApi.create` | `/rounds/new` |
+| Scorecards | Round history | ✅ Built | ✅ `roundsApi.mine` | `/rounds` |
+| Scorecards | Round detail view | ✅ Built | ✅ `roundsApi.getById` | `/rounds/:id` |
+| Scorecards | Stats dashboard | ✅ Built | ✅ `roundsApi.stats` | `/stats` — WHS handicap, trends (Phase 2) |
+| Admin Dashboard | Dashboard home | ✅ Built | ✅ `dashboard-summary` endpoint | `/dashboard` |
+| Admin Dashboard | Bookings management | ✅ Built | ✅ tenant-wide bookings list + check-in + refund | `/dashboard/bookings` (Phase 3) |
+| Admin Dashboard | Payouts & Stripe Connect | ✅ Built | ✅ `paymentsApi.getStripeStatus` + `getConnectLink` | `/dashboard/payouts` — direct merchant onboarding & upfront payment policy (Phase 3) |
+| Admin Dashboard | Staff accounts | ✅ Built | ✅ staff invite/list/remove | `/dashboard/staff` |
+| Super Admin | Platform overview | ✅ Built | ✅ `superAdminApi.stats` | `/super-admin` (Phase 3) |
+| Super Admin | Tenant management | ✅ Built | ✅ `superAdminApi.tenants` + `setTenantStatus` | `/super-admin/tenants` — search, suspend/reactivate (Phase 3) |
 
-**Frontend**: 15/15 MVP pages built and verified compiling (`npm run build` passes clean).
-**Backend wiring**: 2/15 connected to live endpoints (auth only). The rest render correctly against mock data but need their corresponding API calls wired in — most of the *read* endpoints already exist (Tenants, CourseHoles, TeeSlots, Bookings, Rounds controllers), but several *write/admin* endpoints identified below don't exist yet.
+**Frontend**: 20/20 pages built and verified compiling (`npm run build` passes clean).
+**Backend wiring**: 20/20 connected to live endpoints. Phase 3 is 100% complete! Phase 4 (Tournaments & bay booking) scheduled next.
+
 
 ## 14. New Requirements & Gaps Found While Building
 

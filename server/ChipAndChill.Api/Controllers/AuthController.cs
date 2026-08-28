@@ -1,12 +1,14 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Options;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using ChipAndChill.Api.Data;
 using ChipAndChill.Api.DTOs;
 using ChipAndChill.Api.Models;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
+using System.Security.Cryptography;
 using System.Text;
 
 namespace ChipAndChill.Api.Controllers;
@@ -16,11 +18,13 @@ namespace ChipAndChill.Api.Controllers;
 public class AuthController : ControllerBase
 {
     private readonly UserManager<ApplicationUser> _userManager;
+    private readonly AppDbContext _db;
     private readonly IConfiguration _config;
 
-    public AuthController(UserManager<ApplicationUser> userManager, IConfiguration config)
+    public AuthController(UserManager<ApplicationUser> userManager, AppDbContext db, IConfiguration config)
     {
         _userManager = userManager;
+        _db = db;
         _config = config;
     }
 
@@ -41,7 +45,12 @@ public class AuthController : ControllerBase
         if (!result.Succeeded)
             return BadRequest(result.Errors.Select(e => e.Description));
 
-        return Ok(BuildAuthResponse(user));
+        // Generate 15-minute access token and 30-day HttpOnly refresh token
+        var accessToken = GenerateAccessToken(user);
+        var refreshToken = await CreateRefreshTokenAsync(user.Id);
+        SetRefreshTokenCookie(refreshToken.Token, refreshToken.ExpiresAt);
+
+        return Ok(new AuthResponse(accessToken, user.Email, user.FirstName, user.LastName, user.Role, user.TenantId));
     }
 
     [HttpPost("login")]
@@ -51,12 +60,103 @@ public class AuthController : ControllerBase
         if (user == null || !await _userManager.CheckPasswordAsync(user, req.Password))
             return Unauthorized("Invalid email or password.");
 
-        return Ok(BuildAuthResponse(user));
+        var accessToken = GenerateAccessToken(user);
+        var refreshToken = await CreateRefreshTokenAsync(user.Id);
+        SetRefreshTokenCookie(refreshToken.Token, refreshToken.ExpiresAt);
+
+        return Ok(new AuthResponse(accessToken, user.Email!, user.FirstName, user.LastName, user.Role, user.TenantId));
+    }
+
+    // POST /api/auth/refresh — reads HttpOnly refresh token cookie, rotates it, and returns a new 15-minute access token
+    [HttpPost("refresh")]
+    [AllowAnonymous]
+    public async Task<ActionResult<AuthResponse>> Refresh()
+    {
+        var cookieToken = Request.Cookies["refreshToken"];
+        if (string.IsNullOrWhiteSpace(cookieToken))
+            return Unauthorized("Refresh token cookie is missing.");
+
+        var refreshToken = await _db.RefreshTokens
+            .Include(r => r.User)
+            .FirstOrDefaultAsync(r => r.Token == cookieToken);
+
+        if (refreshToken == null || !refreshToken.IsActive || refreshToken.User == null)
+        {
+            ClearRefreshTokenCookie();
+            return Unauthorized("Invalid or expired refresh token.");
+        }
+
+        // Refresh Token Rotation: Revoke old token and issue a fresh one
+        refreshToken.RevokedAt = DateTime.UtcNow;
+        refreshToken.RevokedByIp = GetIpAddress();
+
+        var newRefreshToken = new RefreshToken
+        {
+            UserId = refreshToken.UserId,
+            Token = GenerateRandomTokenString(),
+            ExpiresAt = DateTime.UtcNow.AddDays(30),
+            CreatedAt = DateTime.UtcNow,
+            CreatedByIp = GetIpAddress()
+        };
+
+        refreshToken.ReplacedByToken = newRefreshToken.Token;
+
+        _db.RefreshTokens.Add(newRefreshToken);
+        await _db.SaveChangesAsync();
+
+        SetRefreshTokenCookie(newRefreshToken.Token, newRefreshToken.ExpiresAt);
+
+        var newAccessToken = GenerateAccessToken(refreshToken.User);
+        return Ok(new AuthResponse(newAccessToken, refreshToken.User.Email!, refreshToken.User.FirstName, refreshToken.User.LastName, refreshToken.User.Role, refreshToken.User.TenantId));
+    }
+
+    // POST /api/auth/logout — revokes refresh token in database and deletes the HttpOnly cookie
+    [HttpPost("logout")]
+    [AllowAnonymous]
+    public async Task<IActionResult> Logout()
+    {
+        var cookieToken = Request.Cookies["refreshToken"];
+        if (!string.IsNullOrWhiteSpace(cookieToken))
+        {
+            var refreshToken = await _db.RefreshTokens.FirstOrDefaultAsync(r => r.Token == cookieToken);
+            if (refreshToken != null && refreshToken.IsActive)
+            {
+                refreshToken.RevokedAt = DateTime.UtcNow;
+                refreshToken.RevokedByIp = GetIpAddress();
+                await _db.SaveChangesAsync();
+            }
+        }
+
+        ClearRefreshTokenCookie();
+        return Ok(new { message = "Logged out successfully." });
+    }
+
+    // GET /api/auth/me — returns current authenticated user profile
+    [HttpGet("me")]
+    [Authorize]
+    public async Task<ActionResult<object>> GetCurrentUser()
+    {
+        var userIdStr = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (!Guid.TryParse(userIdStr, out var userId))
+            return Unauthorized();
+
+        var user = await _userManager.FindByIdAsync(userId.ToString());
+        if (user == null)
+            return NotFound("User not found.");
+
+        return Ok(new
+        {
+            id = user.Id,
+            email = user.Email,
+            firstName = user.FirstName,
+            lastName = user.LastName,
+            role = user.Role.ToString(),
+            tenantId = user.TenantId,
+            handicapIndex = user.HandicapIndex
+        });
     }
 
     // POST /api/auth/forgot-password
-    // MVP: returns the reset token directly (no email provider wired yet).
-    // In production this token would be emailed instead of returned.
     [HttpPost("forgot-password")]
     [AllowAnonymous]
     public async Task<IActionResult> ForgotPassword(ForgotPasswordRequest req)
@@ -85,7 +185,9 @@ public class AuthController : ControllerBase
         return Ok(new { message = "Password reset successfully." });
     }
 
-    private AuthResponse BuildAuthResponse(ApplicationUser user)
+    // ── Helper Methods ────────────────────────────────────────────────────────
+
+    private string GenerateAccessToken(ApplicationUser user)
     {
         var jwtKey = _config["Jwt:Key"]!;
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey));
@@ -100,16 +202,68 @@ public class AuthController : ControllerBase
         if (user.TenantId.HasValue)
             claims.Add(new Claim("tenant_id", user.TenantId.Value.ToString()));
 
+        // Short-lived access token: 15 minutes
         var token = new JwtSecurityToken(
-            issuer: _config["Jwt:Issuer"],
-            audience: _config["Jwt:Audience"],
+            issuer: _config["Jwt:Issuer"] ?? "ChipAndChill",
+            audience: _config["Jwt:Audience"] ?? "ChipAndChillUsers",
             claims: claims,
-            expires: DateTime.UtcNow.AddMinutes(double.Parse(_config["Jwt:ExpiryMinutes"] ?? "120")),
+            expires: DateTime.UtcNow.AddMinutes(15),
             signingCredentials: creds
         );
 
-        var tokenString = new JwtSecurityTokenHandler().WriteToken(token);
-        return new AuthResponse(tokenString, user.Email!, user.FirstName, user.LastName, user.Role, user.TenantId);
+        return new JwtSecurityTokenHandler().WriteToken(token);
+    }
+
+    private async Task<RefreshToken> CreateRefreshTokenAsync(Guid userId)
+    {
+        var refreshToken = new RefreshToken
+        {
+            UserId = userId,
+            Token = GenerateRandomTokenString(),
+            ExpiresAt = DateTime.UtcNow.AddDays(30),
+            CreatedAt = DateTime.UtcNow,
+            CreatedByIp = GetIpAddress()
+        };
+
+        _db.RefreshTokens.Add(refreshToken);
+        await _db.SaveChangesAsync();
+        return refreshToken;
+    }
+
+    private static string GenerateRandomTokenString()
+    {
+        return Convert.ToBase64String(RandomNumberGenerator.GetBytes(64));
+    }
+
+    private void SetRefreshTokenCookie(string token, DateTime expiresAt)
+    {
+        var cookieOptions = new CookieOptions
+        {
+            HttpOnly = true,
+            Expires = expiresAt,
+            SameSite = SameSiteMode.Lax,
+            Path = "/api/auth",
+            Secure = Request.IsHttps
+        };
+
+        Response.Cookies.Append("refreshToken", token, cookieOptions);
+    }
+
+    private void ClearRefreshTokenCookie()
+    {
+        Response.Cookies.Delete("refreshToken", new CookieOptions
+        {
+            HttpOnly = true,
+            SameSite = SameSiteMode.Lax,
+            Path = "/api/auth",
+            Secure = Request.IsHttps
+        });
+    }
+
+    private string? GetIpAddress()
+    {
+        if (Request.Headers.TryGetValue("X-Forwarded-For", out var forwardedFor))
+            return forwardedFor.FirstOrDefault();
+        return HttpContext.Connection.RemoteIpAddress?.ToString();
     }
 }
-

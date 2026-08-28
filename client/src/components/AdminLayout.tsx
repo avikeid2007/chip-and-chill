@@ -6,8 +6,14 @@ import { useAuth } from "../api/AuthContext";
 const links = [
   { to: "/dashboard", label: "Overview", icon: "📊" },
   { to: "/dashboard/tee-sheet", label: "Tee Sheet", icon: "⛳" },
+  { to: "/dashboard/tournaments", label: "Tournaments", icon: "🏆" },
+  { to: "/dashboard/range", label: "Range Bays", icon: "🎯" },
+  { to: "/dashboard/golfers", label: "Golfers & Members", icon: "🏌️" },
+  { to: "/dashboard/pricing", label: "Pricing Rules", icon: "🏷️" },
   { to: "/dashboard/bookings", label: "Bookings", icon: "📖" },
-  { to: "/dashboard/course", label: "Course Info", icon: "🏌️" },
+  { to: "/dashboard/course", label: "Course Info", icon: "🗺️" },
+  { to: "/dashboard/branding", label: "Branding & Domain", icon: "🎨" },
+  { to: "/dashboard/payouts", label: "Payouts & Stripe", icon: "💳" },
   { to: "/dashboard/staff", label: "Staff", icon: "👥" },
 ];
 

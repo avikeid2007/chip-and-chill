@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import AdminLayout from "../components/AdminLayout";
 import { useAuth } from "../api/AuthContext";
 import { adminApi, type DashboardSummary, type AdminBooking } from "../api/admin";
+import { formatTime, toDateInput } from "../utils/time";
 import NoCourse from "../components/NoCourse";
 
 const statusColor: Record<string, string> = {
@@ -10,15 +11,6 @@ const statusColor: Record<string, string> = {
   Confirmed: "text-ink-soft bg-black/5",
   Cancelled: "text-[#C0533F] bg-[#C0533F]/10",
 };
-
-function formatTime(iso: string): string {
-  const d = new Date(iso);
-  const h = d.getHours();
-  const m = d.getMinutes().toString().padStart(2, "0");
-  const ampm = h >= 12 ? "p" : "a";
-  const h12 = h % 12 === 0 ? 12 : h % 12;
-  return `${h12}:${m}${ampm}`;
-}
 
 export default function Dashboard() {
   const { user } = useAuth();
@@ -30,9 +22,10 @@ export default function Dashboard() {
   useEffect(() => {
     if (!user?.tenantId) return;
     setLoading(true);
+    const today = toDateInput(new Date());
     Promise.all([
       adminApi.dashboardSummary(user.tenantId, user.token),
-      adminApi.allBookings(user.tenantId, user.token, new Date().toISOString().slice(0, 10)),
+      adminApi.allBookings(user.tenantId, user.token, today),
     ])
       .then(([s, b]) => {
         setSummary(s);

@@ -5,6 +5,7 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>ChipAndChill.Api</RootNamespace>
+    <UserSecretsId>59647779-6d57-417f-9281-5d749a72efae</UserSecretsId>
   </PropertyGroup>
 
   <ItemGroup>

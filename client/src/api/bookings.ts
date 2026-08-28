@@ -5,6 +5,11 @@ export interface Booking {
   teeSlotId: string;
   partySize: number;
   status: "Confirmed" | "CheckedIn" | "Cancelled";
+  paymentStatus?: "Unpaid" | "Paid" | "Refunded";
+  amountPaid?: number;
+  totalPrice?: number;
+  startTime?: string;
+  price?: number;
   teeSlot?: { startTime: string; price: number };
 }
 

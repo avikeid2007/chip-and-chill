@@ -165,7 +165,51 @@ Log in as an admin linked to a course with slots/bookings.
 
 ---
 
-## 7. API Smoke Tests (PowerShell)
+---
+
+## 7. Dynamic Pricing Rules (Course Admin)
+
+### 7.1 Create a Pricing Rule
+1. Log in as `admin@pinehollow.test` → go to `/dashboard/pricing`
+2. Click **+ Add Pricing Rule**
+3. Name: `Weekend Morning Surge`, Days: `Weekends (Sat & Sun)`, Start: `07:00`, End: `11:30`, Price: `75.00`, Priority: `3`
+4. ✅ Rule appears in the list with active badge.
+
+### 7.2 Price Simulator
+1. In the **Live Price Simulator** on `/dashboard/pricing`:
+2. Pick an upcoming Saturday at `08:30` → **Test Dynamic Price**
+3. ✅ Expect: Calculated Rate `$75.00` with `Matched Rule: Weekend Morning Surge`.
+4. Pick a Tuesday at `10:00` → **Test Dynamic Price**
+5. ✅ Expect: Fallback base rate (e.g. `$50.00`).
+
+---
+
+## 8. Stripe Connect & Payments (Course Admin & Golfer)
+
+### 8.1 Connect Stripe Payouts
+1. Go to `/dashboard/payouts`
+2. Click **Connect with Stripe**
+3. ✅ Status flips to **Connected & Active** (Sandbox mode).
+4. Select **Require 100% Upfront Payment Online** → Policy updates.
+
+### 8.2 Golfer Online Checkout
+1. Log in as golfer (`smoketest@example.com`) → go to `/booking`
+2. Click an open slot → verify total amount calculation.
+3. Click **Pay & Confirm** → Checkout Modal appears.
+4. Click **Visa 4242** quick-fill button → **Pay $XX.XX**
+5. ✅ Status updates to "Tee Time Confirmed" with receipt.
+6. Verify email log in API console: `Payment Receipt — Tee time ...`
+7. Check `/bookings` → booking displays `✓ Paid $XX.XX`.
+
+### 8.3 Cancellation & Auto-Refund
+1. On `/bookings`, click **Cancel & Refund** on the paid booking.
+2. Confirm dialog → Status updates to `Cancelled`.
+3. Check `/dashboard/bookings` as admin → payment status shows `Refunded`.
+4. Check API console log → `Refund Processed — $XX.XX` email dispatched.
+
+---
+
+## 9. API Smoke Tests (PowerShell)
 
 ```powershell
 # Health
@@ -183,3 +227,4 @@ Invoke-RestMethod http://localhost:5000/api/rounds/stats -Headers $hdr
 ```
 
 See [api-reference.md](./api-reference.md) for every endpoint.
+

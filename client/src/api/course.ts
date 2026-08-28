@@ -16,6 +16,14 @@ export interface Tenant {
   address?: string;
   description?: string;
   logoUrl?: string;
+  primaryColor?: string;
+  subdomain?: string;
+  customDomain?: string;
+  timezone?: string;
+  currency?: string;
+  currencySymbol?: string;
+  requirePaymentUpfront?: boolean;
+  stripeChargesEnabled?: boolean;
 }
 
 export const courseApi = {
@@ -23,6 +31,9 @@ export const courseApi = {
     apiFetch<Tenant[]>(`/api/tenants${search ? `?search=${encodeURIComponent(search)}` : ""}`),
 
   getTenant: (id: string) => apiFetch<Tenant>(`/api/tenants/${id}`),
+
+  resolve: (host?: string) =>
+    apiFetch<Tenant>(`/api/tenants/resolve${host ? `?host=${encodeURIComponent(host)}` : ""}`),
 
   getHoles: (tenantId: string) => apiFetch<CourseHole[]>(`/api/tenants/${tenantId}/holes`),
 
