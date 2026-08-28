@@ -15,17 +15,20 @@ namespace ChipAndChill.Api.Controllers;
 public class BookingsController : ControllerBase
 {
     private readonly AppDbContext _db;
+    private readonly ITenantNotificationService _notificationService;
     private readonly IEmailSender _emailSender;
     private readonly IPricingEngine _pricingEngine;
     private readonly IPaymentService _paymentService;
 
     public BookingsController(
         AppDbContext db,
+        ITenantNotificationService notificationService,
         IEmailSender emailSender,
         IPricingEngine pricingEngine,
         IPaymentService paymentService)
     {
         _db = db;
+        _notificationService = notificationService;
         _emailSender = emailSender;
         _pricingEngine = pricingEngine;
         _paymentService = paymentService;
@@ -115,21 +118,9 @@ public class BookingsController : ControllerBase
 
         var totalPrice = slot.Price * req.PartySize;
 
-        // Booking confirmation email (provider-agnostic; Console in dev).
+        // Booking confirmation email & SMS via per-course settings
         var booker = await _db.Users.IgnoreQueryFilters().FirstOrDefaultAsync(u => u.Id == userId);
-        if (booker?.Email != null)
-        {
-            var tenant = await _db.Tenants.FindAsync(tenantId);
-            var symbol = tenant?.CurrencySymbol ?? "₹";
-
-            await _emailSender.SendAsync(new EmailMessage(
-                booker.Email,
-                $"Tee time confirmed — {slot.StartTime:MMM d, h:mm tt}",
-                $"Hi {booker.FirstName},\n\n" +
-                $"Your tee time is confirmed for {slot.StartTime:f} (UTC).\n" +
-                $"Party size: {req.PartySize}\nPrice: {symbol}{slot.Price:F2} per player (Total: {symbol}{totalPrice:F2})\n\n" +
-                "See you at the first tee!\n— Chip & Chill"));
-        }
+        await _notificationService.SendBookingConfirmationAsync(tenantId, booking, booker, slot);
 
         return Created($"/api/tenants/{tenantId}/bookings/{booking.Id}",
             new BookingResponse(
@@ -191,16 +182,9 @@ public class BookingsController : ControllerBase
 
         await _db.SaveChangesAsync();
 
-        if (wasPaid && booking.User?.Email != null)
+        if (booking.User != null)
         {
-            var symbol = booking.Tenant?.CurrencySymbol ?? "₹";
-            await _emailSender.SendAsync(new EmailMessage(
-                booking.User.Email,
-                $"Booking Cancelled & Refunded — {symbol}{paidAmount:F2}",
-                $"Hi {booking.User.FirstName},\n\n" +
-                $"Your booking for {booking.TeeSlot?.StartTime:MMM d, h:mm tt} has been cancelled.\n" +
-                $"A full refund of {symbol}{paidAmount:F2} has been initiated to your original payment method.\n\n" +
-                "— Chip & Chill"));
+            await _notificationService.SendBookingCancellationAsync(tenantId, booking, booking.User, wasPaid ? paidAmount : 0);
         }
 
         // Waitlist auto-notify: email the earliest active waitlist entry for this slot.

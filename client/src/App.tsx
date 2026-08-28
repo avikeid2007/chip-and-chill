@@ -9,6 +9,7 @@ import Booking from "./pages/Booking";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import ForgotPassword from "./pages/ForgotPassword";
+import ResetPassword from "./pages/ResetPassword";
 import Profile from "./pages/Profile";
 
 import MyBookings from "./pages/MyBookings";
@@ -33,6 +34,7 @@ import RangeBooking from "./pages/RangeBooking";
 import TournamentManager from "./pages/TournamentManager";
 import RangeManager from "./pages/RangeManager";
 import GolferDirectory from "./pages/GolferDirectory";
+import NotificationSettings from "./pages/NotificationSettings";
 
 import SuperAdminDashboard from "./pages/SuperAdminDashboard";
 import SuperAdminTenants from "./pages/SuperAdminTenants";
@@ -69,6 +71,7 @@ export default function App() {
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/profile" element={<Profile />} />
 
           {/* Golfer */}
@@ -88,6 +91,7 @@ export default function App() {
           <Route path="/dashboard/bookings" element={<BookingsManagement />} />
           <Route path="/dashboard/course" element={<CourseEditor />} />
           <Route path="/dashboard/branding" element={<BrandingSettings />} />
+          <Route path="/dashboard/notifications" element={<NotificationSettings />} />
           <Route path="/dashboard/payouts" element={<PayoutSettings />} />
           <Route path="/dashboard/staff" element={<StaffAccounts />} />
           <Route path="/create-course" element={<CreateCourse />} />

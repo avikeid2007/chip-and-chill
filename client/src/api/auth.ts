@@ -69,4 +69,20 @@ export const authApi = {
         Authorization: `Bearer ${token}`,
       },
     }).then((res) => handle<any>(res)),
+
+  forgotPassword: (email: string) =>
+    fetch(`${API_BASE}/api/auth/forgot-password`, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, clientUrl: window.location.origin }),
+    }).then((res) => handle<{ message: string }>(res)),
+
+  resetPassword: (payload: { email: string; token: string; newPassword: string }) =>
+    fetch(`${API_BASE}/api/auth/reset-password`, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    }).then((res) => handle<{ message: string }>(res)),
 };

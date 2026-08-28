@@ -11,6 +11,8 @@ using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
 
+using ChipAndChill.Api.Services;
+
 namespace ChipAndChill.Api.Controllers;
 
 [ApiController]
@@ -20,12 +22,18 @@ public class AuthController : ControllerBase
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly AppDbContext _db;
     private readonly IConfiguration _config;
+    private readonly ITenantNotificationService _notificationService;
 
-    public AuthController(UserManager<ApplicationUser> userManager, AppDbContext db, IConfiguration config)
+    public AuthController(
+        UserManager<ApplicationUser> userManager,
+        AppDbContext db,
+        IConfiguration config,
+        ITenantNotificationService notificationService)
     {
         _userManager = userManager;
         _db = db;
         _config = config;
+        _notificationService = notificationService;
     }
 
     [HttpPost("register")]
@@ -161,12 +169,21 @@ public class AuthController : ControllerBase
     [AllowAnonymous]
     public async Task<IActionResult> ForgotPassword(ForgotPasswordRequest req)
     {
-        var user = await _userManager.FindByEmailAsync(req.Email);
-        if (user == null)
-            return Ok(new { message = "If the account exists, a reset token has been issued." });
+        if (string.IsNullOrWhiteSpace(req.Email))
+            return BadRequest("Email address is required.");
 
-        var token = await _userManager.GeneratePasswordResetTokenAsync(user);
-        return Ok(new { message = "Reset token generated.", token });
+        var user = await _userManager.FindByEmailAsync(req.Email.Trim());
+        if (user != null && !string.IsNullOrWhiteSpace(user.Email))
+        {
+            var token = await _userManager.GeneratePasswordResetTokenAsync(user);
+            var clientUrl = !string.IsNullOrWhiteSpace(req.ClientUrl) ? req.ClientUrl.TrimEnd('/') : "http://localhost:5173";
+            var resetLink = $"{clientUrl}/reset-password?email={Uri.EscapeDataString(user.Email)}&token={Uri.EscapeDataString(token)}";
+
+            await _notificationService.SendPasswordResetEmailAsync(user, resetLink);
+        }
+
+        // Always return generic 200 OK to prevent email enumeration
+        return Ok(new { message = "If an account with that email exists, we've sent password reset instructions to your inbox." });
     }
 
     // POST /api/auth/reset-password
@@ -174,15 +191,30 @@ public class AuthController : ControllerBase
     [AllowAnonymous]
     public async Task<IActionResult> ResetPassword(ResetPasswordRequest req)
     {
-        var user = await _userManager.FindByEmailAsync(req.Email);
+        if (string.IsNullOrWhiteSpace(req.Email) || string.IsNullOrWhiteSpace(req.Token) || string.IsNullOrWhiteSpace(req.NewPassword))
+            return BadRequest("Email, reset token, and new password are required.");
+
+        var user = await _userManager.FindByEmailAsync(req.Email.Trim());
         if (user == null)
-            return BadRequest("Invalid request.");
+            return BadRequest("Invalid or expired password reset link.");
 
         var result = await _userManager.ResetPasswordAsync(user, req.Token, req.NewPassword);
         if (!result.Succeeded)
             return BadRequest(result.Errors.Select(e => e.Description));
 
-        return Ok(new { message = "Password reset successfully." });
+        // Security: Revoke all active refresh tokens for this user upon password reset
+        var activeTokens = await _db.RefreshTokens
+            .Where(r => r.UserId == user.Id && r.RevokedAt == null)
+            .ToListAsync();
+
+        foreach (var t in activeTokens)
+        {
+            t.RevokedAt = DateTime.UtcNow;
+            t.RevokedByIp = "Password Reset";
+        }
+        await _db.SaveChangesAsync();
+
+        return Ok(new { message = "Password reset successfully. Please log in with your new password." });
     }
 
     // ── Helper Methods ────────────────────────────────────────────────────────

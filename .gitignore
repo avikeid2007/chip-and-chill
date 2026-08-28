@@ -23,3 +23,8 @@ Thumbs.db
 
 # Uploads (runtime user content)
 server/ChipAndChill.Api/wwwroot/uploads/
+
+# Scratch & Logs
+scratch/
+*.log
+

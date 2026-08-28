@@ -8,7 +8,7 @@ public record ChangePasswordRequest(string CurrentPassword, string NewPassword);
 public record UserProfileResponse(Guid Id, string Email, string FirstName, string LastName, string? PhoneNumber, AppRole Role, Guid? TenantId, double? HandicapIndex);
 
 // ---- Password reset ----
-public record ForgotPasswordRequest(string Email);
+public record ForgotPasswordRequest(string Email, string? ClientUrl = null);
 public record ResetPasswordRequest(string Email, string Token, string NewPassword);
 
 // ---- Staff management ----

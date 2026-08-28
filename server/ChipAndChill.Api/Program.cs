@@ -81,9 +81,11 @@ builder.Services.AddControllers()
         options.JsonSerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
     });
 
-// ---- Email (pluggable: Console for dev, Smtp/SendGrid via config) ----
+// ---- Email & SMS Notification Services ----
+builder.Services.AddHttpClient();
 builder.Services.Configure<ChipAndChill.Api.Services.EmailOptions>(builder.Configuration.GetSection("Email"));
 builder.Services.AddSingleton<ChipAndChill.Api.Services.IEmailSender, ChipAndChill.Api.Services.EmailSender>();
+builder.Services.AddScoped<ChipAndChill.Api.Services.ITenantNotificationService, ChipAndChill.Api.Services.TenantNotificationService>();
 
 // ---- Pricing Rules & Payments Services ----
 builder.Services.AddScoped<ChipAndChill.Api.Services.IPricingEngine, ChipAndChill.Api.Services.PricingEngine>();

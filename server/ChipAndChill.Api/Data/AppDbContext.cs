@@ -28,6 +28,7 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid
     public DbSet<RangeBay> RangeBays => Set<RangeBay>();
     public DbSet<BayBooking> BayBookings => Set<BayBooking>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
+    public DbSet<TenantNotificationSettings> TenantNotificationSettings => Set<TenantNotificationSettings>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -45,6 +46,7 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid
         builder.Entity<TournamentScore>().HasQueryFilter(s => CurrentTenantId == null || s.TenantId == CurrentTenantId);
         builder.Entity<RangeBay>().HasQueryFilter(rb => CurrentTenantId == null || rb.TenantId == CurrentTenantId);
         builder.Entity<BayBooking>().HasQueryFilter(bb => CurrentTenantId == null || bb.TenantId == CurrentTenantId);
+        builder.Entity<TenantNotificationSettings>().HasQueryFilter(n => CurrentTenantId == null || n.TenantId == CurrentTenantId);
 
         builder.Entity<Tenant>()
             .HasIndex(t => t.Subdomain)
@@ -157,6 +159,16 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid
             .HasOne(r => r.User)
             .WithMany()
             .HasForeignKey(r => r.UserId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.Entity<TenantNotificationSettings>()
+            .HasIndex(n => n.TenantId)
+            .IsUnique();
+
+        builder.Entity<TenantNotificationSettings>()
+            .HasOne(n => n.Tenant)
+            .WithOne()
+            .HasForeignKey<TenantNotificationSettings>(n => n.TenantId)
             .OnDelete(DeleteBehavior.Cascade);
     }
 }

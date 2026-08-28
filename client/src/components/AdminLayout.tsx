@@ -13,6 +13,7 @@ const links = [
   { to: "/dashboard/bookings", label: "Bookings", icon: "📖" },
   { to: "/dashboard/course", label: "Course Info", icon: "🗺️" },
   { to: "/dashboard/branding", label: "Branding & Domain", icon: "🎨" },
+  { to: "/dashboard/notifications", label: "Email & SMS", icon: "✉️" },
   { to: "/dashboard/payouts", label: "Payouts & Stripe", icon: "💳" },
   { to: "/dashboard/staff", label: "Staff", icon: "👥" },
 ];
