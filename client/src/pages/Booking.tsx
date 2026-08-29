@@ -66,8 +66,11 @@ export default function Booking() {
     courseApi.getTenant(tenantId)
       .then((t) => {
         setTenant(t);
-        if (t.requirePaymentUpfront) {
+        const hasOnline = Boolean(t.stripeChargesEnabled);
+        if (t.requirePaymentUpfront && hasOnline) {
           setPaymentChoice("online");
+        } else {
+          setPaymentChoice("course");
         }
       })
       .catch(() => {});
@@ -135,6 +138,8 @@ export default function Booking() {
     return arr;
   }, []);
 
+  const isOnlinePaymentAvailable = Boolean(tenant?.stripeChargesEnabled);
+
   async function handleBookSlot() {
     if (!selected || !user || !tenantId) return;
     setError(null);
@@ -146,7 +151,7 @@ export default function Booking() {
         partySize,
       });
 
-      if (paymentChoice === "online" || tenant?.requirePaymentUpfront) {
+      if ((paymentChoice === "online" || tenant?.requirePaymentUpfront) && isOnlinePaymentAvailable) {
         setPendingBookingId(booking.id);
         setShowPaymentModal(true);
       } else {
@@ -462,49 +467,66 @@ export default function Booking() {
                     </div>
 
                     {/* Payment Mode Selector */}
-                    {!tenant?.requirePaymentUpfront ? (
+                    {isOnlinePaymentAvailable ? (
+                      !tenant?.requirePaymentUpfront ? (
+                        <div className="pt-2">
+                          <label className="block text-xs font-bold uppercase tracking-wider text-gray-700 mb-2">
+                            Payment Mode
+                          </label>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <label className={`flex items-start gap-3 p-3.5 rounded-2xl border cursor-pointer transition-all ${
+                              paymentChoice === "online" ? "bg-emerald-50/70 border-turf shadow-sm" : "border-gray-200 hover:bg-gray-50"
+                            }`}>
+                              <input
+                                type="radio"
+                                name="payMode"
+                                checked={paymentChoice === "online"}
+                                onChange={() => setPaymentChoice("online")}
+                                className="mt-1 text-turf focus:ring-turf"
+                              />
+                              <div>
+                                <p className="text-xs font-bold text-gray-900">💳 Pay Online Now</p>
+                                <p className="text-[11px] text-gray-500">Instant credit card confirmation</p>
+                              </div>
+                            </label>
+
+                            <label className={`flex items-start gap-3 p-3.5 rounded-2xl border cursor-pointer transition-all ${
+                              paymentChoice === "course" ? "bg-emerald-50/70 border-turf shadow-sm" : "border-gray-200 hover:bg-gray-50"
+                            }`}>
+                              <input
+                                type="radio"
+                                name="payMode"
+                                checked={paymentChoice === "course"}
+                                onChange={() => setPaymentChoice("course")}
+                                className="mt-1 text-turf focus:ring-turf"
+                              />
+                              <div>
+                                <p className="text-xs font-bold text-gray-900">⛳ Pay at Clubhouse on Arrival</p>
+                                <p className="text-[11px] text-gray-500">Settle at check-in desk before tee-off</p>
+                              </div>
+                            </label>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="bg-amber-50 p-3.5 rounded-2xl border border-amber-200 text-xs text-amber-900 space-y-0.5">
+                          <p className="font-bold">💳 Course Online Payment Policy</p>
+                          <p className="opacity-80">This facility requires upfront payment to confirm tee time slots.</p>
+                        </div>
+                      )
+                    ) : (
                       <div className="pt-2">
                         <label className="block text-xs font-bold uppercase tracking-wider text-gray-700 mb-2">
-                          Payment Mode
+                          Payment Method
                         </label>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                          <label className={`flex items-start gap-3 p-3.5 rounded-2xl border cursor-pointer transition-all ${
-                            paymentChoice === "online" ? "bg-emerald-50/70 border-turf shadow-sm" : "border-gray-200 hover:bg-gray-50"
-                          }`}>
-                            <input
-                              type="radio"
-                              name="payMode"
-                              checked={paymentChoice === "online"}
-                              onChange={() => setPaymentChoice("online")}
-                              className="mt-1 text-turf focus:ring-turf"
-                            />
-                            <div>
-                              <p className="text-xs font-bold text-gray-900">💳 Pay Online Now</p>
-                              <p className="text-[11px] text-gray-500">Instant credit card confirmation</p>
-                            </div>
-                          </label>
-
-                          <label className={`flex items-start gap-3 p-3.5 rounded-2xl border cursor-pointer transition-all ${
-                            paymentChoice === "course" ? "bg-emerald-50/70 border-turf shadow-sm" : "border-gray-200 hover:bg-gray-50"
-                          }`}>
-                            <input
-                              type="radio"
-                              name="payMode"
-                              checked={paymentChoice === "course"}
-                              onChange={() => setPaymentChoice("course")}
-                              className="mt-1 text-turf focus:ring-turf"
-                            />
-                            <div>
-                              <p className="text-xs font-bold text-gray-900">⛳ Pay at Pro Shop</p>
-                              <p className="text-[11px] text-gray-500">Pay when checking in at course</p>
-                            </div>
-                          </label>
+                        <div className="p-3.5 rounded-2xl bg-emerald-50/60 border border-emerald-200 flex items-start gap-3">
+                          <span className="text-xl">⛳</span>
+                          <div>
+                            <p className="text-xs font-bold text-gray-900">Pay at Clubhouse on Arrival</p>
+                            <p className="text-[11px] text-gray-600 mt-0.5">
+                              No advance online card payment required • Settle your green fee at the clubhouse check-in desk before tee-off.
+                            </p>
+                          </div>
                         </div>
-                      </div>
-                    ) : (
-                      <div className="bg-amber-50 p-3.5 rounded-2xl border border-amber-200 text-xs text-amber-900 space-y-0.5">
-                        <p className="font-bold">💳 Course Online Payment Policy</p>
-                        <p className="opacity-80">This facility requires upfront payment to confirm tee time slots.</p>
                       </div>
                     )}
 
@@ -527,9 +549,9 @@ export default function Booking() {
                         >
                           {bookingInProgress
                             ? "Processing Reservation..."
-                            : paymentChoice === "online" || tenant?.requirePaymentUpfront
+                            : (paymentChoice === "online" && isOnlinePaymentAvailable) || (tenant?.requirePaymentUpfront && isOnlinePaymentAvailable)
                             ? `Proceed to Pay ${currencySymbol}${totalPrice.toFixed(2)} →`
-                            : "Confirm & Reserve Tee Time →"}
+                            : `Confirm & Reserve (${currencySymbol}${totalPrice.toFixed(2)} at Clubhouse) →`}
                         </button>
                       ) : (
                         <div className="flex items-center gap-3">

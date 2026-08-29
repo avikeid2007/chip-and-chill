@@ -19,8 +19,8 @@ export default function PwaInstallPrompt() {
 
     if (isStandalone) return;
 
-    // Check if dismissed previously in session
-    const dismissed = sessionStorage.getItem("pwa_install_dismissed");
+    // Check if dismissed previously
+    const dismissed = localStorage.getItem("pwa_install_dismissed");
     if (dismissed) return;
 
     // 2. Check if on iOS Safari
@@ -62,13 +62,13 @@ export default function PwaInstallPrompt() {
   function handleDismiss() {
     setShowPrompt(false);
     setShowIosGuide(false);
-    sessionStorage.setItem("pwa_install_dismissed", "true");
+    localStorage.setItem("pwa_install_dismissed", "true");
   }
 
   if (!showPrompt) return null;
 
   return (
-    <div className="fixed top-4 left-4 right-4 md:left-auto md:right-6 md:w-96 z-50 animate-in fade-in slide-in-from-top-4 duration-300">
+    <div className="fixed bottom-24 left-4 right-4 md:bottom-6 md:left-auto md:right-6 md:w-96 z-40 animate-in fade-in slide-in-from-bottom-4 duration-300">
       <div className="bg-[#0B3024] text-white p-4 rounded-3xl border border-white/20 shadow-2xl backdrop-blur-xl relative overflow-hidden">
         {/* Subtle Luxury Pattern */}
         <div className="absolute top-0 right-0 w-24 h-24 rounded-full bg-emerald-500/10 blur-xl pointer-events-none" />

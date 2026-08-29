@@ -9,18 +9,31 @@ using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Ensure User Secrets and Environment Variables are always loaded
+builder.Configuration.AddUserSecrets("59647779-6d57-417f-9281-5d749a72efae");
+builder.Configuration.AddEnvironmentVariables();
+
 // ---- Database: switch provider via appsettings ("Database:Provider" = "SqlServer" | "MySql") ----
 var dbProvider = builder.Configuration["Database:Provider"] ?? "SqlServer";
 builder.Services.AddDbContext<AppDbContext>(options =>
 {
     if (dbProvider == "MySql")
     {
-        var cs = builder.Configuration.GetConnectionString("MySql");
-        options.UseMySql(cs, ServerVersion.AutoDetect(cs));
+        var cs = builder.Configuration.GetConnectionString("MySql")
+                 ?? builder.Configuration["ConnectionStrings:MySql"]
+                 ?? throw new InvalidOperationException("Connection string 'MySql' was not found in configuration or user secrets.");
+        options.UseMySql(cs, new MySqlServerVersion(new Version(8, 0, 36)), mySqlOptions =>
+        {
+            mySqlOptions.EnableRetryOnFailure(
+                maxRetryCount: 3,
+                maxRetryDelay: TimeSpan.FromSeconds(5),
+                errorNumbersToAdd: null);
+        });
     }
     else
     {
-        var cs = builder.Configuration.GetConnectionString("SqlServer");
+        var cs = builder.Configuration.GetConnectionString("SqlServer")
+                 ?? builder.Configuration["ConnectionStrings:SqlServer"];
         options.UseSqlServer(cs);
     }
 });
