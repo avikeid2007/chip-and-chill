@@ -1,0 +1,83 @@
+name: Deploy Chip & Chill (Web & API) to VM
+
+on:
+  push:
+    branches: [ "main", "master" ]
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      # 1. Build React Web App (Client)
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: 'client/package-lock.json'
+
+      - name: Install Frontend & Build React SPA
+        working-directory: client
+        run: |
+          npm ci
+          npm run build
+
+      # 2. Build .NET 8 API (Server)
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Publish ASP.NET Core Web API
+        run: dotnet publish server/ChipAndChill.Api/ChipAndChill.Api.csproj -c Release -o out-api
+
+      # 3. Prepare VM Directories & Stop API Service
+      - name: Stop Service & Prepare VM Directories
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VM_HOST }}
+          username: ${{ secrets.VM_USER }}
+          key: ${{ secrets.VM_SSH_KEY }}
+          script: |
+            sudo systemctl stop chipandchill-api || true
+            sudo mkdir -p /var/www/chipandchill.in/web /var/www/chipandchill.in/api
+            sudo rm -rf /var/www/chipandchill.in/web/* /var/www/chipandchill.in/api/*
+            sudo chown -R $USER:$USER /var/www/chipandchill.in
+
+      # 4. Upload React Web App to /var/www/chipandchill.in/web
+      - name: Upload React Web App
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.VM_HOST }}
+          username: ${{ secrets.VM_USER }}
+          key: ${{ secrets.VM_SSH_KEY }}
+          source: "client/dist/**"
+          target: "/var/www/chipandchill.in/web"
+          strip_components: 2
+
+      # 5. Upload ASP.NET Core API to /var/www/chipandchill.in/api
+      - name: Upload ASP.NET Core Web API
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.VM_HOST }}
+          username: ${{ secrets.VM_USER }}
+          key: ${{ secrets.VM_SSH_KEY }}
+          source: "out-api/**"
+          target: "/var/www/chipandchill.in/api"
+          strip_components: 1
+
+      # 6. Set Permissions & Restart API Service
+      - name: Set Permissions & Start Service
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VM_HOST }}
+          username: ${{ secrets.VM_USER }}
+          key: ${{ secrets.VM_SSH_KEY }}
+          script: |
+            sudo chown -R www-data:www-data /var/www/chipandchill.in
+            sudo chmod -R 755 /var/www/chipandchill.in
+            sudo systemctl start chipandchill-api || true
