@@ -1079,7 +1079,9 @@ export default function TournamentManager() {
                               <th className="py-3 px-4">Email</th>
                               <th className="py-3 px-4">Handicap</th>
                               <th className="py-3 px-4">Flight / Division</th>
-                              <th className="py-3 px-4">Cut Status</th>
+                              {selectedTournament.roundsCount > 1 && (
+                                <th className="py-3 px-4 whitespace-nowrap">Cut Status</th>
+                              )}
                               <th className="py-3 px-4">Group</th>
                               <th className="py-3 px-4">Payment</th>
                               <th className="py-3 px-4 text-right">Actions</th>
@@ -1088,8 +1090,8 @@ export default function TournamentManager() {
                           <tbody className="divide-y divide-sand">
                             {filteredRegistrations.map((r) => (
                               <tr key={r.id} className="hover:bg-mist/40 transition-colors">
-                                <td className="py-3 px-4 font-bold text-fairway">{r.golferName}</td>
-                                <td className="py-3 px-4 text-fairway/70 font-mono text-[11px]">{r.golferEmail}</td>
+                                <td className="py-3 px-4 font-bold text-fairway whitespace-nowrap">{r.golferName}</td>
+                                <td className="py-3 px-4 text-fairway/70 font-mono text-[11px] whitespace-nowrap">{r.golferEmail}</td>
                                 <td className="py-3 px-4 font-mono font-medium">
                                   {r.handicapIndex !== null && r.handicapIndex !== undefined
                                     ? r.handicapIndex.toFixed(1)
@@ -1110,17 +1112,19 @@ export default function TournamentManager() {
                                     <option value="Ladies Division">Ladies Division</option>
                                   </select>
                                 </td>
-                                <td className="py-3 px-4">
-                                  <span
-                                    className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                                      r.madeCut !== false
-                                        ? "bg-green-100 text-green-800"
-                                        : "bg-rose-100 text-rose-800"
-                                    }`}
-                                  >
-                                    {r.madeCut !== false ? "✓ Made Cut" : "❌ MC"}
-                                  </span>
-                                </td>
+                                {selectedTournament.roundsCount > 1 && (
+                                  <td className="py-3 px-4 whitespace-nowrap">
+                                    <span
+                                      className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold inline-block whitespace-nowrap ${
+                                        r.madeCut !== false
+                                          ? "bg-green-100 text-green-800"
+                                          : "bg-rose-100 text-rose-800"
+                                      }`}
+                                    >
+                                      {r.madeCut !== false ? "✓ Made Cut" : "❌ MC"}
+                                    </span>
+                                  </td>
+                                )}
                                 <td className="py-3 px-4 font-mono">
                                   {r.pairingGroup ? `Group ${r.pairingGroup}` : <span className="text-fairway/40">Unassigned</span>}
                                 </td>
