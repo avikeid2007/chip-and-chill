@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from "react";
-import { useSearchParams, Link } from "react-router-dom";
+import { useSearchParams, useParams, Link } from "react-router-dom";
 import NavBar from "../components/NavBar";
 import PaymentModal from "../components/PaymentModal";
 import type { TeeSlot } from "../types";
@@ -22,6 +22,7 @@ interface GolferSlot {
 
 export default function Booking() {
   const { user } = useAuth();
+  const { id: routeTenantId } = useParams<{ id: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
   const [courses, setCourses] = useState<Tenant[]>([]);
   const [slots, setSlots] = useState<GolferSlot[]>([]);
@@ -43,7 +44,7 @@ export default function Booking() {
 
   // 1. Fetch available courses
   useEffect(() => {
-    const urlTenantId = searchParams.get("tenantId") || searchParams.get("courseId");
+    const urlTenantId = routeTenantId || searchParams.get("tenantId") || searchParams.get("courseId");
 
     courseApi.list()
       .then((all) => {

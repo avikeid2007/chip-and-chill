@@ -99,7 +99,7 @@ export default function Landing() {
   function handleQuickSearch(e: React.FormEvent) {
     e.preventDefault();
     if (selectedCourseId) {
-      navigate(`/courses/${selectedCourseId}/book?date=${selectedDate}&partySize=${selectedPartySize}`);
+      navigate(`/booking?tenantId=${selectedCourseId}&date=${selectedDate}&partySize=${selectedPartySize}`);
     } else {
       navigate("/courses");
     }
@@ -330,7 +330,7 @@ export default function Landing() {
                     </div>
                   </div>
                   <Link
-                    to={t.type === "Range" ? "/range" : `/courses/${t.id}/book`}
+                    to={t.type === "Range" ? `/range?tenantId=${t.id}` : `/booking?tenantId=${t.id}`}
                     className="px-4 py-2 rounded-xl bg-fairway text-white text-xs font-semibold hover:bg-fairway/90 transition-colors shadow-sm"
                   >
                     {t.type === "Range" ? "Reserve Bay" : "Book Tee Time"}

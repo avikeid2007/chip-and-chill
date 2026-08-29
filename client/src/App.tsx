@@ -62,6 +62,8 @@ export default function App() {
           <Route path="/" element={<Landing />} />
           <Route path="/courses" element={<CourseBrowse />} />
           <Route path="/courses/:id" element={<CourseProfile />} />
+          <Route path="/courses/:id/book" element={<Booking />} />
+          <Route path="/courses/:id/booking" element={<Booking />} />
           <Route path="/booking" element={<Booking />} />
           <Route path="/range" element={<RangeBooking />} />
           <Route path="/tournaments" element={<Tournaments />} />
