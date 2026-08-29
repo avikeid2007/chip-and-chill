@@ -16,11 +16,16 @@ public class TenantsController : ControllerBase
 {
     private readonly AppDbContext _db;
     private readonly UserManager<ApplicationUser> _userManager;
+    private readonly ChipAndChill.Api.Services.IWeatherService _weatherService;
 
-    public TenantsController(AppDbContext db, UserManager<ApplicationUser> userManager)
+    public TenantsController(
+        AppDbContext db,
+        UserManager<ApplicationUser> userManager,
+        ChipAndChill.Api.Services.IWeatherService weatherService)
     {
         _db = db;
         _userManager = userManager;
+        _weatherService = weatherService;
     }
 
     // Public directory - browse all active courses/ranges. Not tenant-scoped
@@ -103,13 +108,13 @@ public class TenantsController : ControllerBase
     public async Task<ActionResult<Tenant>> GetById(Guid id)
     {
         var tenant = await _db.Tenants
-            .Include(t => t.Holes.OrderBy(h => h.HoleNumber))
+            .AsNoTracking()
             .FirstOrDefaultAsync(t => t.Id == id);
 
         return tenant == null ? NotFound() : Ok(tenant);
     }
 
-    // GET /api/tenants/{id}/weather — Live golf weather & playability conditions
+    // GET /api/tenants/{id}/weather — Live real-world satellite golf weather
     [HttpGet("{id:guid}/weather")]
     [AllowAnonymous]
     public async Task<ActionResult<CourseWeatherDto>> GetCourseWeather(Guid id)
@@ -117,39 +122,8 @@ public class TenantsController : ControllerBase
         var tenant = await _db.Tenants.FindAsync(id);
         if (tenant == null) return NotFound();
 
-        // Calculate realistic live weather based on current local hour
-        var now = DateTime.UtcNow;
-        var seed = id.GetHashCode() + now.DayOfYear * 24 + now.Hour;
-        var rng = new Random(seed);
-
-        var tempC = rng.Next(18, 28);
-        var tempF = (int)Math.Round(tempC * 9.0 / 5.0 + 32.0);
-        var feelsLikeC = tempC + rng.Next(-2, 3);
-        var feelsLikeF = (int)Math.Round(feelsLikeC * 9.0 / 5.0 + 32.0);
-        var windSpeedMph = rng.Next(4, 16);
-        var directions = new[] { "N", "NE", "E", "SE", "S", "SW", "W", "NW" };
-        var windDir = directions[rng.Next(directions.Length)];
-        var humidity = rng.Next(40, 75);
-
-        var condition = windSpeedMph > 12 ? "Windy & Clear" : tempC > 25 ? "Sunny & Warm" : "Partly Cloudy";
-        var description = windSpeedMph > 12 
-            ? "Breezy conditions across fairways. Add 1 club into the wind." 
-            : "Prime golf conditions with optimal greens speed.";
-        var playability = windSpeedMph > 14 ? "Challenging Crosswind" : "Ideal Playing Conditions";
-
-        return Ok(new CourseWeatherDto(
-            condition,
-            description,
-            tempC,
-            tempF,
-            feelsLikeC,
-            feelsLikeF,
-            windSpeedMph,
-            windDir,
-            humidity,
-            playability,
-            now.ToString("hh:mm tt UTC")
-        ));
+        var weather = await _weatherService.GetLiveCourseWeatherAsync(tenant.Id, tenant.Address, tenant.Timezone);
+        return Ok(weather);
     }
 
     // POST /api/tenants/{id}/cover — Upload scenic course hero banner

@@ -104,6 +104,8 @@ builder.Services.AddControllers()
     {
         // Accept and emit enums as strings ("Golfer", "CourseAdmin", "Confirmed"...)
         options.JsonSerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
+        // Prevent JSON object cycle serialization loops
+        options.JsonSerializerOptions.ReferenceHandler = System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles;
     });
 
 // ---- Email & SMS Notification Services ----
@@ -119,6 +121,9 @@ builder.Services.AddScoped<ChipAndChill.Api.Services.IPaymentService, ChipAndChi
 // ---- Tee Slot Schedule & Automated Generation Services ----
 builder.Services.AddScoped<ChipAndChill.Api.Services.ITeeSlotGeneratorService, ChipAndChill.Api.Services.TeeSlotGeneratorService>();
 builder.Services.AddHostedService<ChipAndChill.Api.Services.TeeSlotAutoGeneratorHostedService>();
+
+// ---- Live Satellite Weather Service ----
+builder.Services.AddScoped<ChipAndChill.Api.Services.IWeatherService, ChipAndChill.Api.Services.OpenMeteoWeatherService>();
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>

@@ -1,9 +1,13 @@
+using System.Text.Json.Serialization;
+
 namespace ChipAndChill.Api.Models;
 
 public class CourseHole
 {
     public Guid Id { get; set; } = Guid.NewGuid();
     public Guid TenantId { get; set; }
+
+    [JsonIgnore]
     public Tenant? Tenant { get; set; }
 
     public int HoleNumber { get; set; } // 1-18
