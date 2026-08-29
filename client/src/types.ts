@@ -115,6 +115,9 @@ export interface TournamentSummary {
   registeredCount: number;
   holesCount: number;
   isPublic: boolean;
+  prizePurse?: number;
+  roundsCount?: number;
+  currentRound?: number;
   createdAt: string;
 }
 
@@ -125,6 +128,9 @@ export interface TournamentRegistration {
   golferName: string;
   golferEmail: string;
   handicapIndex?: number | null;
+  flight?: string | null;
+  madeCut?: boolean;
+  pointsEarned?: number | null;
   status: TournamentRegistrationStatus;
   paymentStatus: TournamentPaymentStatus;
   amountPaid: number;
@@ -133,15 +139,27 @@ export interface TournamentRegistration {
   registeredAt: string;
 }
 
+export interface TournamentHoleScore {
+  holeNumber: number;
+  grossScore: number;
+  par: number;
+  points: number;
+  roundNumber?: number;
+}
+
 export interface TournamentLeaderboardRow {
   rank: number;
   registrationId: string;
   userId?: string | null;
   golferName: string;
   handicapIndex?: number | null;
+  flight?: string | null;
+  madeCut?: boolean;
   thruHoles: number;
   totalGross: number;
   toPar: number;
+  totalNet: number;
+  netToPar: number;
   stablefordPoints: number;
   eagles: number;
   birdies: number;
@@ -150,11 +168,83 @@ export interface TournamentLeaderboardRow {
   doublePlus: number;
   pairingGroup?: number | null;
   teeTime?: string | null;
+  roundGrossScores?: number[];
+  holeScores?: TournamentHoleScore[];
 }
 
 export interface TournamentDetail extends TournamentSummary {
+  prizePurse: number;
+  closestToPinHole?: number | null;
+  closestToPinWinner?: string | null;
+  longestDriveHole?: number | null;
+  longestDriveWinner?: string | null;
+  roundsCount: number;
+  currentRound: number;
+  cutRule?: string | null;
+  cutAppliedAfterRound?: number | null;
   registrations: TournamentRegistration[];
   leaderboard: TournamentLeaderboardRow[];
+}
+
+export interface TournamentSkinsResult {
+  holeNumber: number;
+  winnerRegistrationId?: string | null;
+  winnerName?: string | null;
+  flight?: string | null;
+  winningScore: number;
+  par: number;
+  isNet: boolean;
+  isCarryover: boolean;
+  value: number;
+}
+
+export interface TournamentSkinsSummary {
+  totalSkins: number;
+  totalPot: number;
+  grossSkins: TournamentSkinsResult[];
+  netSkins: TournamentSkinsResult[];
+}
+
+export interface TournamentPayoutRow {
+  rank: number;
+  registrationId: string;
+  golferName: string;
+  flight?: string | null;
+  payoutAmount: number;
+  pursePercentage: number;
+  isTie: boolean;
+  totalGross: number;
+  netToPar: number;
+}
+
+export interface TournamentPayoutsResponse {
+  totalPurse: number;
+  totalPaidPlaces: number;
+  payouts: TournamentPayoutRow[];
+}
+
+export interface AutoFlightRule {
+  flightName: string;
+  minHandicap: number;
+  maxHandicap: number;
+}
+
+export interface OrderOfMeritRow {
+  rank: number;
+  golferName: string;
+  golferEmail: string;
+  handicapIndex?: number | null;
+  totalPoints: number;
+  tournamentsPlayed: number;
+  wins: number;
+  top10s: number;
+  totalEarnings: number;
+}
+
+export interface OrderOfMeritResponse {
+  tenantId: string;
+  seasonName: string;
+  standings: OrderOfMeritRow[];
 }
 
 // Driving Range Types

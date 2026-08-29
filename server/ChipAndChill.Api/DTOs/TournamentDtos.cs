@@ -16,6 +16,9 @@ public record TournamentSummaryResponse(
     int RegisteredCount,
     int HolesCount,
     bool IsPublic,
+    decimal PrizePurse,
+    int RoundsCount,
+    int CurrentRound,
     DateTime CreatedAt
 );
 
@@ -33,6 +36,15 @@ public record TournamentDetailResponse(
     int RegisteredCount,
     int HolesCount,
     bool IsPublic,
+    decimal PrizePurse,
+    int? ClosestToPinHole,
+    string? ClosestToPinWinner,
+    int? LongestDriveHole,
+    string? LongestDriveWinner,
+    int RoundsCount,
+    int CurrentRound,
+    string? CutRule,
+    int? CutAppliedAfterRound,
     DateTime CreatedAt,
     IEnumerable<TournamentRegistrationDto> Registrations,
     IEnumerable<TournamentLeaderboardRowDto> Leaderboard
@@ -45,6 +57,9 @@ public record TournamentRegistrationDto(
     string GolferName,
     string GolferEmail,
     decimal? HandicapIndex,
+    string? Flight,
+    bool MadeCut,
+    int? PointsEarned,
     TournamentRegistrationStatus Status,
     TournamentPaymentStatus PaymentStatus,
     decimal AmountPaid,
@@ -62,7 +77,9 @@ public record CreateTournamentRequest(
     decimal EntryFee,
     int MaxParticipants,
     int HolesCount,
-    bool IsPublic
+    bool IsPublic,
+    decimal? PrizePurse = null,
+    int RoundsCount = 1
 );
 
 public record UpdateTournamentRequest(
@@ -75,25 +92,58 @@ public record UpdateTournamentRequest(
     decimal? EntryFee,
     int? MaxParticipants,
     int? HolesCount,
-    bool? IsPublic
+    bool? IsPublic,
+    decimal? PrizePurse,
+    int? ClosestToPinHole,
+    string? ClosestToPinWinner,
+    int? LongestDriveHole,
+    string? LongestDriveWinner,
+    int? RoundsCount,
+    int? CurrentRound,
+    string? CutRule
 );
 
 public record RegisterTournamentRequest(
     string GolferName,
     string GolferEmail,
-    decimal? HandicapIndex
+    decimal? HandicapIndex,
+    string? Flight = null
+);
+
+public record UpdateFlightRequest(
+    string? Flight
+);
+
+public record AutoFlightRuleItem(
+    string FlightName,
+    decimal MinHandicap,
+    decimal MaxHandicap
+);
+
+public record AutoFlightRequest(
+    List<AutoFlightRuleItem> Rules
+);
+
+public record UpdateTournamentSideContestsRequest(
+    int? ClosestToPinHole,
+    string? ClosestToPinWinner,
+    int? LongestDriveHole,
+    string? LongestDriveWinner,
+    decimal? PrizePurse
 );
 
 public record PostTournamentScoreRequest(
     Guid RegistrationId,
     int HoleNumber,
     int GrossScore,
-    int Par
+    int Par,
+    int RoundNumber = 1
 );
 
 public record BatchPostTournamentScoresRequest(
     Guid RegistrationId,
-    List<HoleScoreItem> Scores
+    List<HoleScoreItem> Scores,
+    int RoundNumber = 1
 );
 
 public record HoleScoreItem(
@@ -108,15 +158,52 @@ public record GeneratePairingsRequest(
     DateTime? FirstTeeTime = null
 );
 
+public record UpdateRegistrationPairingRequest(
+    int? PairingGroup,
+    DateTime? TeeTime
+);
+
+public record PairingAssignmentItem(
+    Guid RegistrationId,
+    int? PairingGroup,
+    DateTime? TeeTime
+);
+
+public record BatchUpdatePairingsRequest(
+    List<PairingAssignmentItem> Assignments
+);
+
+public record ApplyCutRequest(
+    int CutRank = 30,
+    bool IncludeTies = true,
+    int AfterRound = 1
+);
+
+public record UpdateCurrentRoundRequest(
+    int RoundNumber
+);
+
+public record TournamentHoleScoreDto(
+    int HoleNumber,
+    int GrossScore,
+    int Par,
+    int Points,
+    int RoundNumber = 1
+);
+
 public record TournamentLeaderboardRowDto(
     int Rank,
     Guid RegistrationId,
     Guid? UserId,
     string GolferName,
     decimal? HandicapIndex,
+    string? Flight,
+    bool MadeCut,
     int ThruHoles,
     int TotalGross,
     int ToPar,
+    int TotalNet,
+    int NetToPar,
     int StablefordPoints,
     int Eagles,
     int Birdies,
@@ -124,5 +211,62 @@ public record TournamentLeaderboardRowDto(
     int Bogeys,
     int DoublePlus,
     int? PairingGroup,
-    DateTime? TeeTime
+    DateTime? TeeTime,
+    List<int> RoundGrossScores,
+    List<TournamentHoleScoreDto> HoleScores
+);
+
+public record TournamentSkinsResultDto(
+    int HoleNumber,
+    Guid? WinnerRegistrationId,
+    string? WinnerName,
+    string? Flight,
+    int WinningScore,
+    int Par,
+    bool IsNet,
+    bool IsCarryover,
+    int Value
+);
+
+public record TournamentSkinsSummaryDto(
+    int TotalSkins,
+    decimal TotalPot,
+    List<TournamentSkinsResultDto> GrossSkins,
+    List<TournamentSkinsResultDto> NetSkins
+);
+
+public record TournamentPayoutRowDto(
+    int Rank,
+    Guid RegistrationId,
+    string GolferName,
+    string? Flight,
+    decimal PayoutAmount,
+    double PursePercentage,
+    bool IsTie,
+    int TotalGross,
+    int NetToPar
+);
+
+public record TournamentPayoutsResponse(
+    decimal TotalPurse,
+    int TotalPaidPlaces,
+    List<TournamentPayoutRowDto> Payouts
+);
+
+public record OrderOfMeritRowDto(
+    int Rank,
+    string GolferName,
+    string GolferEmail,
+    decimal? HandicapIndex,
+    int TotalPoints,
+    int TournamentsPlayed,
+    int Wins,
+    int Top10s,
+    decimal TotalEarnings
+);
+
+public record OrderOfMeritResponse(
+    Guid TenantId,
+    string SeasonName,
+    List<OrderOfMeritRowDto> Standings
 );

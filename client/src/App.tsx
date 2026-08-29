@@ -31,6 +31,7 @@ import CreateCourse from "./pages/CreateCourse";
 
 import Tournaments from "./pages/Tournaments";
 import TournamentDetail from "./pages/TournamentDetail";
+import TournamentTvLeaderboard from "./pages/TournamentTvLeaderboard";
 import RangeBooking from "./pages/RangeBooking";
 import TournamentManager from "./pages/TournamentManager";
 import RangeManager from "./pages/RangeManager";
@@ -70,6 +71,7 @@ export default function App() {
           <Route path="/range" element={<RangeBooking />} />
           <Route path="/tournaments" element={<Tournaments />} />
           <Route path="/tournaments/:id" element={<TournamentDetail />} />
+          <Route path="/tournaments/:id/tv" element={<TournamentTvLeaderboard />} />
 
           {/* Auth & account */}
           <Route path="/login" element={<Login />} />
