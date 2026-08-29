@@ -33,9 +33,8 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-screen grid md:grid-cols-[240px_1fr]">
       <aside className="bg-fairway text-white/85 px-5 py-8 flex flex-col md:sticky md:top-0 md:h-screen">
-        <Link to="/" className="font-display font-semibold text-lg text-white flex items-center gap-2 mb-10 px-1">
-          <Logo size={22} dark />
-          chip &amp; chill
+        <Link to="/" className="flex items-center text-white mb-8 px-1">
+          <Logo size={24} dark showText textSize="text-xl" />
         </Link>
         <nav className="space-y-1 flex-1">
           {links.map((l) => {

@@ -86,10 +86,9 @@ export default function NavBar() {
         {/* Logo */}
         <Link
           to="/"
-          className="font-display font-semibold text-xl tracking-tight flex items-center gap-2.5 text-white flex-shrink-0"
+          className="flex items-center text-white flex-shrink-0 group"
         >
-          <Logo size={26} dark />
-          chip &amp; chill
+          <Logo size={28} dark showText textSize="text-2xl" />
         </Link>
 
         {/* Desktop center links */}
