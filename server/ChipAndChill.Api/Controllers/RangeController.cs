@@ -17,16 +17,16 @@ public class RangeController : ControllerBase
 {
     private readonly AppDbContext _db;
     private readonly UserManager<ApplicationUser> _userManager;
-    private readonly IEmailSender _emailSender;
+    private readonly ITenantNotificationService _notificationService;
 
     public RangeController(
         AppDbContext db,
         UserManager<ApplicationUser> userManager,
-        IEmailSender emailSender)
+        ITenantNotificationService notificationService)
     {
         _db = db;
         _userManager = userManager;
-        _emailSender = emailSender;
+        _notificationService = notificationService;
     }
 
     // GET /api/tenants/{tenantId}/range/bays
@@ -271,6 +271,8 @@ public class RangeController : ControllerBase
         _db.BayBookings.Add(booking);
         await _db.SaveChangesAsync();
 
+        await _notificationService.SendBayBookingConfirmationAsync(tenantId, booking, null, bay);
+
         return Ok(new BayBookingDto(
             booking.Id,
             booking.TenantId,
@@ -293,9 +295,13 @@ public class RangeController : ControllerBase
 
     // POST /api/tenants/{tenantId}/range/bookings/{id}/confirm-sandbox-payment
     [HttpPost("bookings/{id:guid}/confirm-sandbox-payment")]
-    [AllowAnonymous]
+    [Authorize]
     public async Task<ActionResult<BayBookingDto>> ConfirmSandboxPayment(Guid tenantId, Guid id)
     {
+        var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (userIdClaim == null || !Guid.TryParse(userIdClaim, out var userId))
+            return Unauthorized();
+
         var booking = await _db.BayBookings
             .IgnoreQueryFilters()
             .Include(bk => bk.RangeBay)
@@ -303,11 +309,24 @@ public class RangeController : ControllerBase
 
         if (booking == null) return NotFound("Bay booking not found.");
 
+        var user = await _userManager.FindByIdAsync(userId.ToString());
+        var isStaffOrAdmin = User.IsInRole("CourseAdmin") || User.IsInRole("Staff") || User.IsInRole("SuperAdmin");
+        var isOwner = (booking.UserId.HasValue && booking.UserId == userId) || 
+                      (!booking.UserId.HasValue && user != null && string.Equals(user.Email, booking.GolferEmail, StringComparison.OrdinalIgnoreCase));
+
+        if (!isOwner && !isStaffOrAdmin)
+            return Forbid();
+
         booking.PaymentStatus = BayPaymentStatus.Paid;
         booking.AmountPaid = booking.Price;
         booking.PaymentIntentId = $"sandbox_bay_{Guid.NewGuid():N}";
 
         await _db.SaveChangesAsync();
+
+        if (booking.RangeBay != null)
+        {
+            await _notificationService.SendBayBookingConfirmationAsync(tenantId, booking, user, booking.RangeBay);
+        }
 
         return Ok(new BayBookingDto(
             booking.Id,
@@ -391,14 +410,26 @@ public class RangeController : ControllerBase
 
     // POST /api/tenants/{tenantId}/range/bookings/{id}/cancel
     [HttpPost("bookings/{id:guid}/cancel")]
-    [AllowAnonymous]
+    [Authorize]
     public async Task<IActionResult> CancelBooking(Guid tenantId, Guid id)
     {
+        var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (userIdClaim == null || !Guid.TryParse(userIdClaim, out var userId))
+            return Unauthorized();
+
         var booking = await _db.BayBookings
             .IgnoreQueryFilters()
             .FirstOrDefaultAsync(b => b.TenantId == tenantId && b.Id == id);
 
         if (booking == null) return NotFound();
+
+        var user = await _userManager.FindByIdAsync(userId.ToString());
+        var isStaffOrAdmin = User.IsInRole("CourseAdmin") || User.IsInRole("Staff") || User.IsInRole("SuperAdmin");
+        var isOwner = (booking.UserId.HasValue && booking.UserId == userId) || 
+                      (!booking.UserId.HasValue && user != null && string.Equals(user.Email, booking.GolferEmail, StringComparison.OrdinalIgnoreCase));
+
+        if (!isOwner && !isStaffOrAdmin)
+            return Forbid();
 
         booking.Status = BayBookingStatus.Cancelled;
         if (booking.PaymentStatus == BayPaymentStatus.Paid)

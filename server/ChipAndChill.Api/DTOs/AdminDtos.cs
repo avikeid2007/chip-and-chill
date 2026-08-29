@@ -3,9 +3,68 @@ using ChipAndChill.Api.Models;
 namespace ChipAndChill.Api.DTOs;
 
 // ---- Users / profile ----
-public record UpdateProfileRequest(string FirstName, string LastName, string? PhoneNumber);
+public record UpdateProfileRequest(
+    string FirstName,
+    string LastName,
+    string? PhoneNumber = null,
+    string? AvatarUrl = null,
+    string? Bio = null,
+    string? City = null,
+    string? Country = null,
+    string? HomeClubName = null,
+    string? Handedness = null,
+    string? PreferredTee = null,
+    string? AverageScore = null,
+    string? PlayFrequency = null,
+    string? Driver = null,
+    string? Irons = null,
+    string? Putter = null,
+    string? GolfBall = null,
+    string? EmergencyContactName = null,
+    string? EmergencyContactPhone = null,
+    bool? SmsAlertsEnabled = null,
+    bool? MarketingEnabled = null
+);
+
 public record ChangePasswordRequest(string CurrentPassword, string NewPassword);
-public record UserProfileResponse(Guid Id, string Email, string FirstName, string LastName, string? PhoneNumber, AppRole Role, Guid? TenantId, double? HandicapIndex);
+
+public record GolferCareerSummaryDto(
+    int TotalRounds,
+    double? BestRoundScore,
+    int TournamentsPlayed,
+    int RangeSessionsBooked,
+    int TeeTimesBooked
+);
+
+public record UserProfileResponse(
+    Guid Id,
+    string Email,
+    string FirstName,
+    string LastName,
+    string? PhoneNumber,
+    AppRole Role,
+    Guid? TenantId,
+    double? HandicapIndex,
+    DateTime CreatedAt,
+    string? AvatarUrl,
+    string? Bio,
+    string? City,
+    string? Country,
+    string? HomeClubName,
+    string? Handedness,
+    string? PreferredTee,
+    string? AverageScore,
+    string? PlayFrequency,
+    string? Driver,
+    string? Irons,
+    string? Putter,
+    string? GolfBall,
+    string? EmergencyContactName,
+    string? EmergencyContactPhone,
+    bool SmsAlertsEnabled,
+    bool MarketingEnabled,
+    GolferCareerSummaryDto? CareerStats = null
+);
 
 // ---- Password reset ----
 public record ForgotPasswordRequest(string Email, string? ClientUrl = null);

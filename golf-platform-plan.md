@@ -1,294 +1,209 @@
 # Open Golf — Open Source Golf Course & Range Platform
 
-A multi-tenant web platform where any golf course or driving range can sign up, manage their own tee sheet/bay schedule, and let golfers book, track scores, and view course info — all self-hostable or run as a shared instance.
-
-## 1. Core Concept
-
-Think "WordPress for golf courses": one open-source codebase, many independent tenants (courses/ranges), each with their own branding, staff, pricing, and golfers, but sharing the same underlying platform and improvements.
-
-## 2. User Roles
-
-| Role | Scope | Capabilities |
-|---|---|---|
-| **Super Admin** | Platform-wide | Manage tenants, global settings, moderation |
-| **Course Admin** | One tenant | Manage tee sheet, pricing, staff, course content, reports |
-| **Staff** | One tenant | Front-desk booking overrides, check-ins, limited edits |
-| **Golfer** | Cross-tenant | Book tee times/bays at any tenant, log scores, track stats, manage profile |
-
-A single golfer account can book across many different courses — this is the key reason to go multi-tenant rather than "install one instance per course."
-
-## 3. Core Modules
-
-1. **Tenant management** — course/range onboarding, branding (logo, colors), subdomain or custom domain support
-2. **Tee time / bay booking** — real-time availability calendar, booking rules (advance windows, group size), cancellations, waitlists, optional payments
-3. **Scorecards & stats** — digital scorecard entry per round, handicap calculation (USGA/WHS formula), round history, trends over time
-4. **Course info** — hole-by-hole yardages/par, course map, weather widget, pro shop info, events/leagues
-5. **Admin dashboard** — tee sheet management, pricing rules (peak/off-peak, member rates), staff accounts, booking reports, revenue summaries
-6. **Driving range mode** — simpler bay-based booking (no 18-hole scorecard needed), bucket/session pricing
-
-## 4. Tech Stack
-
-- **Frontend**: React + Vite + TypeScript, Tailwind CSS, a rich/distinctive visual design (not a generic template look) — data views like scorecards and tee sheets get a custom, purpose-built treatment
-- **Backend**: ASP.NET Core Web API (C#), EF Core as the ORM
-- **Database**: SQL Server or MySQL — EF Core provider selected via config, so self-hosters can pick either (SQL Server via `Microsoft.EntityFrameworkCore.SqlServer`, MySQL via `Pomelo.EntityFrameworkCore.MySql`); multi-tenant via a `TenantId` column on shared tables
-- **Auth**: ASP.NET Core Identity + JWT bearer tokens, role-based access control (RBAC) for Super Admin / Course Admin / Staff / Golfer; OAuth (Google/Apple) as optional login
-- **Payments**: Stripe Connect (lets each tenant receive their own payouts)
-- **Hosting**: Docker Compose for self-hosting (API container + DB container + frontend static build); deployable to any VPS or cloud
-- **Notifications**: Email (booking confirmations) via a pluggable provider (SMTP/SendGrid); SMS optional
-
-## 5. Data Model (high level, maps to EF Core entities)
-
-```
-Tenant (Id, Name, Type[Course|Range], Domain, Branding, Timezone)
-User (Id, Email, Role, TenantId[nullable for golfers])
-CourseProfile (TenantId, Holes[], Yardages, Par, MapUrl)
-TeeSheet (TenantId, Date, Slots[])
-Booking (Id, TenantId, UserId, SlotId, PartySize, Status)
-Round (Id, UserId, TenantId, Date, Scores[], HandicapDiff)
-PricingRule (TenantId, DayType, TimeRange, Price)
-```
-
-Each becomes an EF Core entity class + `DbSet<T>` on an `AppDbContext`, with Fluent API configuration for the `TenantId` global query filter (so every query is automatically scoped to the current tenant).
-
-## 6. Project Structure
-
-```
-opengolf/
-├── client/                  # React + Vite + TypeScript frontend
-│   ├── src/
-│   │   ├── pages/           # Landing, CourseBrowse, Booking, Dashboard, Admin
-│   │   ├── components/      # Tee sheet, scorecard, booking calendar, etc.
-│   │   ├── api/             # Typed fetch client for the ASP.NET Core API
-│   │   └── styles/          # Tailwind + design tokens
-│   └── vite.config.ts
-├── server/                  # ASP.NET Core Web API
-│   ├── OpenGolf.Api/
-│   │   ├── Controllers/     # TenantsController, BookingsController, etc.
-│   │   ├── Models/          # EF Core entity classes
-│   │   ├── Data/            # AppDbContext, migrations
-│   │   ├── Program.cs       # DI, auth, DB provider selection
-│   │   └── appsettings.json # Connection string, JWT settings
-│   └── OpenGolf.sln
-└── docker-compose.yml        # API + DB + frontend containers
-```
-
-## 7. Multi-Tenancy Approach
-
-- **Shared DB, `tenant_id` column** on every tenant-scoped table — simplest for an open-source project since self-hosters won't need to manage many databases
-- Tenants get either a subdomain (`pinehill.opengolf.app`) or connect a custom domain
-- Platform-wide super admin can see all tenants (for hosted/SaaS version); self-hosters typically run one tenant but the multi-tenant code path stays intact
-
-## 8. Open Source Considerations
-
-- **License**: MIT or AGPL (AGPL prevents a company from hosting your code as a paid SaaS without contributing back — worth deciding early)
-- **Governance**: clear `CONTRIBUTING.md`, issue templates, a roadmap board (GitHub Projects)
-- **Plugin/extension points**: e.g. custom pricing rules, alternate handicap formulas, integrations (POS systems, existing booking tools) — design these as interfaces early so the community can extend without forking
-- **Self-hosting docs**: Docker Compose file + `.env.example` + a "deploy in 10 minutes" guide lowers the bar for course owners to try it
-
-## 9. Suggested Roadmap
-
-**Phase 1 — MVP (single tenant, core booking)**
-- Tenant + auth system
-- Tee sheet + booking flow
-- Basic course info pages
-- Admin dashboard (view/manage bookings)
-
-**Phase 2 — Scorecards & stats**
-- Digital scorecard entry
-- Handicap calculation
-- Round history/stats dashboard
-
-**Phase 3 — Multi-tenant polish (COMPLETE)**
-- ✅ Tenant onboarding flow (`/create-course` wizard, logo upload, links creator as admin)
-- ✅ Super Admin tenant list/suspend + platform stats dashboard
-- ✅ Cross-tenant authorization hardening (`[TenantScoped]` route-param filter)
-- ✅ Branding settings page (logo, brand color, subdomain, custom domain CNAME guide, course currency) — `/dashboard/branding`
-- ✅ Multi-Currency Support (configured per tenant, defaulting to `INR` `₹ / ₨` with dynamic formatting across booking, pricing rules, checkouts, and receipts)
-- ✅ Custom domain routing (hostname resolution middleware + `GET /api/tenants/resolve`)
-- ✅ Pricing rules engine (peak/off-peak, weekend/weekday, twilight rates, dynamic preview & simulator) — `/dashboard/pricing`
-- ✅ Payments (Stripe Connect Express onboarding, direct payout routing, online booking checkout, auto-refunds) — `/dashboard/payouts`
-- ✅ Tournament registration payments foundation (shared checkout engine ready for Module G)
-
-
-
-**Phase 4 — Tournaments, range mode & community**
-- ✅ Tournament & league module (creation, registration, entry fee checkout, auto-pairings, live leaderboard) — `/tournaments`, `/tournaments/:id`, `/dashboard/tournaments`
-- ✅ Driving range & bay booking mode (bay setup, duration reservations, live bay status board, active session countdown timers) — `/range`, `/dashboard/range`
-- ✅ Golfer & Member Directory (searchable member list, handicap profiles, booking history, tournament entries, lifetime spend) — `/dashboard/golfers`
-- Plugin/extension API & Webhooks
-- Public tenant directory ("find a course near me")
-
-## 10. Detailed Module → Page → Feature Breakdown
-
-Full scope across all phases. ✅ = MVP (Phase 1). Everything else is Phase 2–4 per the roadmap.
-
-### Module A: Auth & Accounts
-| Page | Functions |
-|---|---|
-| Sign up ✅ | Golfer self-registration; Course Admin registration (creates a Tenant); email verification |
-| Log in ✅ | Email/password login; JWT issuance; "remember me" |
-| Forgot / reset password ✅ | Reset email, token-based reset form |
-| OAuth login | Google/Apple sign-in |
-| Profile settings ✅ | Edit name, contact info, avatar, password change |
-| Role & permissions (internal) ✅ | RBAC enforcement: Super Admin, Course Admin, Staff, Golfer |
-
-### Module B: Tenant (Course/Range) Management
-| Page | Functions |
-|---|---|
-| Tenant onboarding wizard ✅ | Create tenant, choose type (course/range), set timezone, initial branding |
-| Branding settings | Logo upload, color theme, subdomain or custom domain config |
-| Tenant directory (public) | Searchable/filterable list of all courses & ranges on the platform ("find a course near me") |
-| Super Admin: tenant list | View/suspend/approve tenants (SaaS mode) |
-| Super Admin: platform settings | Global feature flags, moderation |
-
-### Module C: Course Info
-| Page | Functions |
-|---|---|
-| Course profile page ✅ | Name, description, address, contact, photos |
-| Hole-by-hole details ✅ | Par, yardage (multiple tee boxes), hole notes, hole map image |
-| Course map / layout | Interactive or static full-course map |
-| Weather widget | Current conditions + forecast for course location |
-| Events / leagues page | Link to full tournament listing (see Module G) |
-| Pro shop info | Hours, contact, featured items (static content, no e-commerce in MVP) |
-| Course info editor (admin) ✅ | CRUD for all of the above, from the admin dashboard |
-
-### Module D: Tee Time / Bay Booking
-| Page | Functions |
-|---|---|
-| Availability calendar ✅ | View open slots by date, filter by time/players; range mode shows bays instead of tee times |
-| Book a slot ✅ | Select slot, party size, confirm; creates Booking record |
-| My bookings ✅ | Upcoming/past bookings, cancel a booking |
-| Booking confirmation | Email confirmation (pluggable SMTP/SendGrid) |
-| Waitlist | Join waitlist when full; auto-notify on cancellation |
-| Admin: tee sheet manager ✅ | View full day's schedule, manually add/edit/block slots, override bookings |
-| Admin: booking rules | Set advance-booking window, max party size, blackout dates |
-| Pricing rules engine | Peak/off-peak pricing, member vs. public rate, day-type pricing |
-| Payment at booking | Stripe Connect checkout, tenant payout routing |
-
-### Module E: Scorecards & Stats
-| Page | Functions |
-|---|---|
-| Digital scorecard entry ✅ | Enter strokes per hole for a round, select tee box, auto-total |
-| Round history ✅ | List of past rounds with scores, course, date |
-| Round detail view ✅ | Full hole-by-hole breakdown of one round |
-| Stats dashboard | Trends over time (avg score, fairways/greens hit if tracked, best/worst holes) |
-| Handicap tracking | USGA/WHS handicap calculation from round history, handicap index display |
-
-### Module F: Admin Dashboard (Course Admin / Staff)
-| Page | Functions |
-|---|---|
-| Dashboard home ✅ | Today's bookings at a glance, quick stats (bookings this week, occupancy) |
-| Bookings management ✅ | Search/filter all bookings, manual check-in, cancel/refund |
-| Staff accounts ✅ | Invite staff, assign permissions |
-| Reports | Revenue summary, utilization/occupancy reports, exportable |
-| Course content editor ✅ | Shared with Module C's editor — one place to manage course info |
-
-### Module G: Tournaments & Leagues
-| Page | Functions |
-|---|---|
-| Tournament list (public) | Browse upcoming/past tournaments across a tenant (or platform-wide), filter by date/type |
-| Tournament detail page | Format (stroke play, match play, scramble, etc.), date, entry fee, field size, rules/notes |
-| Create tournament (admin) | Set format, date, course, tee times/pairings, entry fee, max field size, registration window |
-| Registration / sign-up | Golfer registers, pays entry fee (ties into Payment module once live), waitlist if full |
-| Pairings & tee times | Auto- or manual-assign groups to starting times; publish pairing sheet |
-| Live leaderboard | Real-time standings as scores are entered; supports gross/net, flights/divisions |
-| Score entry (tournament round) | Player or scorekeeper enters scores per hole; separate from casual round entry in Module E |
-| Results & payouts page | Final standings, skins/closest-to-pin winners, prize breakdown |
-| League/season view | Recurring series across multiple events, cumulative season standings |
-
-This absorbs the earlier "Events/leagues" stub in Module C and the "Leaderboards" line in Module E — tournaments get real registration, pairings, and live scoring rather than just a static listing.
-
-### Module H: Driving Range Mode (Phase 4)
-| Page | Functions |
-|---|---|
-| Bay availability | Simplified slot grid (bays instead of tee times) |
-| Bucket/session booking | Book a bay + bucket size, no 18-hole scorecard needed |
-| Range admin dashboard | Same booking-management pattern as Module F, scoped to bays |
-
-### Module I: Platform Extensibility (Phase 4)
-| Page | Functions |
-|---|---|
-| Plugin/extension settings (admin) | Enable/configure community plugins (alt handicap formulas, POS integrations, custom pricing rules) |
-| Developer docs (static site) | Plugin API reference for contributors |
+A modern, multi-tenant web platform where any golf course or driving range can sign up, manage their own tee sheet/bay schedule, and let golfers book, track scores, and view course info — all self-hostable or run as a shared cloud instance.
 
 ---
 
-**MVP page count**: ~18 pages across Modules A–D–E–F (marked ✅) — this is the realistic Phase 1 build list. Tournaments (Module G) is Phase 2+, since it depends on booking and scoring foundations being solid first.
-**Full platform**: ~44+ pages once every module and phase is complete (9 modules total).
+## 1. Core Concept
 
-## 11. Decisions Locked In
+Think "WordPress for golf courses": one open-source codebase, many independent tenants (courses/ranges), each with their own branding, staff, pricing, custom notification relay, and golfers, sharing the same underlying platform and high-performance architecture.
 
-- **License**: MIT
-- **Hosting model**: Designed for hosted SaaS *and* self-hosting from day one — multi-tenancy (Tenant table, `TenantId` scoping) is core architecture, not bolted on later. Self-hosters typically run one tenant; the SaaS version just adds a Super Admin tenant-management layer on top.
-- **Payments**: Deferred to Phase 3. MVP bookings have no payment step (pay-at-course), so Stripe Connect complexity doesn't block early development.
-- **Platform**: Web-only (responsive), no native mobile app for now.
-- **Default DB**: SQL Server as the primary example in docs/Docker Compose (best EF Core tooling support); MySQL fully supported as an alternate provider via Pomelo.
+---
 
-## 12. Revised MVP Scope (Phase 1)
+## 2. User Roles & Access Control
 
-Given the "all features, both user types" scope, Phase 1 is trimmed to the smallest slice that's still a usable product for one tenant, with multi-tenant architecture underneath:
+| Role | Scope | Capabilities | Status |
+|---|---|---|---|
+| **Super Admin** | Platform-wide | Manage tenants, global settings, suspension/activation, revenue stats | ✅ Complete |
+| **Course Admin** | One tenant | Manage tee sheet, pricing rules, staff, payouts, notifications, CRM | ✅ Complete |
+| **Staff** | One tenant | Front-desk booking overrides, manual check-ins, range bay management | ✅ Complete |
+| **Golfer** | Cross-tenant | Book tee times/bays across any course, digital scorecard, handicap, stats | ✅ Complete |
 
-- Tenant + auth (Course Admin, Staff, Golfer roles) — no Super Admin UI yet, but data model supports it
-- Tee time booking (calendar, availability, cancellation) — no payments, no waitlist yet
-- Basic course info page (holes, yardages, map)
-- Digital scorecard entry + round history (handicap calc can follow in Phase 2)
-- Admin dashboard: view/manage bookings, edit course info
+A single golfer account can book across multiple courses worldwide — verified and supported seamlessly across all tenant tee sheets.
 
-Explicitly out of MVP: payments, waitlists, pricing rules engine, range/bay mode, Super Admin tenant directory, plugin API — all still on the roadmap in Phases 2–4.
+---
 
-## 13. MVP Build Checklist
+## 3. Tech Stack
 
-Tracks implementation status of every MVP page, plus Phase 2/3 additions built since.
+- **Frontend**: React 18 + Vite + TypeScript, Tailwind CSS, custom luxury golf design tokens (`fairway`, `turf`, `sand`, `gold`), responsive layouts.
+- **Backend**: ASP.NET Core 8 Web API (C#), EF Core ORM, RESTful controllers, `ITenantNotificationService`.
+- **Database**: MySQL (Pomelo) / SQL Server support with global EF Core `TenantId` query filters and automatic migrations.
+- **Auth**: ASP.NET Core Identity + JWT Bearer Tokens + HttpOnly refresh token cookie rotation + 2-Hour Password Reset DataProtection tokens.
+- **Payments**: Stripe Connect Express onboarding, direct payout routing, upfront checkout, and automated Stripe refunds.
+- **Notifications**: Multi-tenant Email & SMS relay supporting Custom SMTP (Brevo, AWS SES, Gmail), Mailgun REST API, and Twilio SMS.
+- **Hosting**: Docker Compose ready (API + MySQL/SQL Server + Frontend static build).
 
-| Module | Page | Frontend UI | Wired to API | Notes |
-|---|---|---|---|---|
-| Auth | Sign up | ✅ Built | ✅ `authApi.register` | `/register` |
-| Auth | Log in | ✅ Built | ✅ `authApi.login` | `/login` |
-| Auth | Forgot/reset password | ✅ Built | ✅ `authApiExtended.forgotPassword` / `resetPassword` | `/forgot-password` |
-| Auth | Profile settings | ✅ Built | ✅ `usersApi.me` / `updateMe` | `/profile` |
-| Course Info | Course profile (public) | ✅ Built | ✅ `courseApi.getTenant` + `getHoles` | `/courses/:id` — now shows tenant logo |
-| Course Info | Course info editor (admin) | ✅ Built | ✅ `courseApi.saveHoles` + `updateTenant` | `/dashboard/course` |
-| Course Info | Branding settings (admin) | ✅ Built | ✅ `courseApi.updateTenant` | `/dashboard/branding` — logo, brand color, subdomain, custom domain (Phase 3) |
-| Booking | Availability calendar / book a slot | ✅ Built | ✅ live `GET .../tee-slots` + `POST .../bookings` | `/booking` — includes waitlist join & Stripe/Sandbox checkout (Phase 3) |
-| Booking | My bookings | ✅ Built | ✅ `bookingsApi.mine` + `cancel` | `/bookings` — includes payment status & auto-refunds (Phase 3) |
-| Booking | Admin: tee sheet manager | ✅ Built | ✅ `POST .../tee-slots` + block/unblock | `/dashboard/tee-sheet` |
-| Booking | Admin: pricing rules manager | ✅ Built | ✅ `pricingApi.*` CRUD + preview | `/dashboard/pricing` — dynamic weekend/twilight rules & simulator (Phase 3) |
-| Scorecards | Digital scorecard entry | ✅ Built | ✅ `roundsApi.create` | `/rounds/new` |
-| Scorecards | Round history | ✅ Built | ✅ `roundsApi.mine` | `/rounds` |
-| Scorecards | Round detail view | ✅ Built | ✅ `roundsApi.getById` | `/rounds/:id` |
-| Scorecards | Stats dashboard | ✅ Built | ✅ `roundsApi.stats` | `/stats` — WHS handicap, trends (Phase 2) |
-| Admin Dashboard | Dashboard home | ✅ Built | ✅ `dashboard-summary` endpoint | `/dashboard` |
-| Admin Dashboard | Bookings management | ✅ Built | ✅ tenant-wide bookings list + check-in + refund | `/dashboard/bookings` (Phase 3) |
-| Admin Dashboard | Payouts & Stripe Connect | ✅ Built | ✅ `paymentsApi.getStripeStatus` + `getConnectLink` | `/dashboard/payouts` — direct merchant onboarding & upfront payment policy (Phase 3) |
-| Admin Dashboard | Staff accounts | ✅ Built | ✅ staff invite/list/remove | `/dashboard/staff` |
-| Super Admin | Platform overview | ✅ Built | ✅ `superAdminApi.stats` | `/super-admin` (Phase 3) |
-| Super Admin | Tenant management | ✅ Built | ✅ `superAdminApi.tenants` + `setTenantStatus` | `/super-admin/tenants` — search, suspend/reactivate (Phase 3) |
+---
 
-**Frontend**: 20/20 pages built and verified compiling (`npm run build` passes clean).
-**Backend wiring**: 20/20 connected to live endpoints. Phase 3 is 100% complete! Phase 4 (Tournaments & bay booking) scheduled next.
+## 4. Current Implementation Status Matrix
 
+### Module A: Authentication, Security & Accounts (100% COMPLETE)
+| Feature | Implementation Details | Status |
+|---|---|---|
+| Golfer & Admin Registration | Cross-tenant golfer signup + Course creator tenant binding (`/register`) | ✅ Complete |
+| JWT + HttpOnly Refresh Tokens | Dual-token authentication with automatic background refresh rotation | ✅ Complete |
+| Password Reset Flow | `POST /api/auth/forgot-password` with 2-hour Identity token + Brevo/SMTP email dispatch + session invalidation (`/forgot-password`, `/reset-password`) | ✅ Complete |
+| User Profile & Golfer Passport | Comprehensive Golfer Passport: Bio, avatar upload, City/Country, Home Club, Handedness, Preferred Tee, Average Score, Play Frequency, 'In The Bag' clubs & balls, Emergency contacts, SMS/Marketing preferences, live career stats ribbon, and password security (`/profile`) | ✅ Complete |
+| Role-Based Authorization | `[Authorize(Roles = "...")]` and `[TenantScoped]` filter protection across all controllers | ✅ Complete |
+| OAuth Social Login | Google / Apple sign-in buttons | ⚠️ *Gap / Backlog* |
 
-## 14. New Requirements & Gaps Found While Building
+---
 
-Building out the full MVP page set surfaced backend gaps not previously scoped. Adding these to the roadmap:
+### Module B: Multi-Tenant Management & Customization (100% COMPLETE)
+| Feature | Implementation Details | Status |
+|---|---|---|
+| Tenant Onboarding Wizard | 3-step course creation wizard with logo upload and default tee intervals (`/create-course`, `/onboarding`) | ✅ Complete |
+| Branding & Domain Settings | Custom logo, brand color, subdomain, custom CNAME routing, currency selection (`/dashboard/branding`) | ✅ Complete |
+| Multi-Currency Support | Dynamic currency formatting (`₹`, `$`, `€`, `£`, etc.) across all pricing rules, checkouts, and receipts | ✅ Complete |
+| Custom Hostname Resolution | `TenantMiddleware` resolving tenant by subdomain or custom CNAME | ✅ Complete |
+| Super Admin Tenant Management | Platform stats, tenant search, suspend/reactivate clubs (`/super-admin`, `/super-admin/tenants`) | ✅ Complete |
 
-- **`GET /api/users/me` + `PUT /api/users/me`** — Profile settings page needs to read/update the current user; no such endpoint exists yet (only registration/login).
-- **`POST /api/auth/forgot-password` + `POST /api/auth/reset-password`** — password reset flow has no backend support yet; needs an email token flow.
-- **Tenant-wide bookings list for admins** — `BookingsController` currently only exposes "my bookings" (scoped to the calling golfer). Admins need `GET /api/tenants/{id}/bookings` to see *everyone's* bookings for the tee sheet and bookings-management pages.
-- **Block/unblock a tee slot** — `TeeSlot.IsBlocked` exists on the model, but there's no endpoint to toggle it; the tee sheet manager page needs `PATCH /api/tenants/{id}/tee-slots/{slotId}`.
-- **Check-in status transition** — `BookingStatus` supports `CheckedIn`, but there's no endpoint to set it; bookings management needs `POST /api/tenants/{id}/bookings/{bookingId}/check-in`.
-- **Staff invite/list/remove** — no `StaffController` exists yet. Needs invite-by-email (creates a pending `ApplicationUser` scoped to the tenant with `Staff` role), list, and remove endpoints.
-- **Dashboard summary stats** — the admin dashboard home page wants aggregate numbers (bookings today/this week, occupancy %, revenue). Needs a lightweight `GET /api/tenants/{id}/dashboard-summary` endpoint rather than composing it client-side from raw booking data.
-- **Admin layout as a first-class pattern** — added `AdminLayout.tsx` (sidebar nav: Overview, Tee Sheet, Bookings, Course Info, Staff) to group all Course Admin/Staff pages consistently, rather than each admin page reimplementing navigation.
+---
 
-These are Phase 1 additions (they complete the MVP as scoped), not new phases — the roadmap in Section 9 doesn't need to change, but the backend controller list does grow: add `UsersController` and `StaffController`, and extend `BookingsController` with the endpoints above, plus a new `TeeSlotsController` (or extend `BookingsController` further) for slot blocking.
+### Module C: Course Information & Public Directory (100% COMPLETE)
+| Feature | Implementation Details | Status |
+|---|---|---|
+| Course Directory Browse | Search and filter courses and driving ranges with cover cards, ratings, architect & amenities badges (`/courses`) | ✅ Complete |
+| Course Profile View | Luxury hero banner, club info, amenities, location, contact, hole list, direct booking (`/courses/:id`) | ✅ Complete |
+| Hole-by-Hole Details | 18-Hole matrix across 5 tee boxes (Black, Blue, White, Gold, Red), USGA stroke index 1-18, Out/In totals | ✅ Complete |
+| Interactive Hole Flyover & Tips | Hole selector 1-18 with pro strategy tips, layout hazards, and tee distances | ✅ Complete |
+| Course Content Editor | Admin CRUD editor for holes, pars, yardages, stroke index, grass types, designer, ratings & cover upload (`/dashboard/course`) | ✅ Complete |
+| Live Weather & Wind Widget | Real-time temperature (°C/°F), wind speed/direction, humidity, and playability conditions (`/api/tenants/:id/weather`) | ✅ Complete |
 
-Given the "all features, both user types" scope, Phase 1 is trimmed to the smallest slice that's still a usable product for one tenant, with multi-tenant architecture underneath:
+---
 
-- Tenant + auth (Course Admin, Staff, Golfer roles) — no Super Admin UI yet, but data model supports it
-- Tee time booking (calendar, availability, cancellation) — no payments, no waitlist yet
-- Basic course info page (holes, yardages, map)
-- Digital scorecard entry + round history (handicap calc can follow in Phase 2)
-- Admin dashboard: view/manage bookings, edit course info
+### Module D: Tee Sheet & Booking Engine (100% COMPLETE)
+| Feature | Implementation Details | Status |
+|---|---|---|
+| Live Availability Calendar | Day-by-day slot browser with party size filtering and pricing badges (`/booking`) | ✅ Complete |
+| Split Booking Engine | Booking for singles, pairs, trios, and foursomes with remaining player caps | ✅ Complete |
+| Dynamic Pricing Engine | Priority-based rules (Weekend, Weekday, Peak, Twilight) with live preview simulator (`/dashboard/pricing`) | ✅ Complete |
+| Admin Tee Sheet Manager | Full day schedule grid, 8/10/12 min slot generation, block/unblock maintenance slots (`/dashboard/tee-sheet`) | ✅ Complete |
+| Golfer Waitlist | Join waitlist on full slots with automated promotion on cancellations | ✅ Complete |
+| My Bookings Hub | Golfer dashboard with upcoming/past tee times, status, and directions (`/bookings`) | ✅ Complete |
+| Front-Desk Check-In & Refunds | Staff check-in workflow and 1-click cancellation with Stripe refund (`/dashboard/bookings`) | ✅ Complete |
 
-Explicitly out of MVP: payments, waitlists, pricing rules engine, range/bay mode, Super Admin tenant directory, plugin API — all still on the roadmap in Phases 2–4.
+---
+
+### Module E: Payments & Financial Payouts (100% COMPLETE)
+| Feature | Implementation Details | Status |
+|---|---|---|
+| Stripe Connect Express | Direct course onboarding with live payout and charge status (`/dashboard/payouts`) | ✅ Complete |
+| Upfront Payment Policy | Configurable per tenant (Require Online Payment vs Pay at Clubhouse) | ✅ Complete |
+| Stripe Checkout & Sandbox Mode | Dual-mode payment processing for live credit cards or instant development test | ✅ Complete |
+| Automated Refunds | Auto-refunds Stripe charges when a booking is cancelled within refund policy | ✅ Complete |
+| Rental & Pro Shop Add-ons | Add golf cart, pull cart, or range bucket during booking checkout | ⚠️ *Identified Gap* |
+
+---
+
+### Module F: Multi-Tenant Email & SMS Notification Hub (95% COMPLETE)
+| Feature | Implementation Details | Status |
+|---|---|---|
+| Custom SMTP Relay | Course-specific SMTP support for Brevo, AWS SES, SendGrid, Gmail (`/dashboard/notifications`) | ✅ Complete |
+| Mailgun REST API | Direct HTTP API integration with API key + domain | ✅ Complete |
+| Twilio SMS Text Alerts | Direct SMS dispatch for booking confirmations and mobile reminders | ✅ Complete |
+| Fallback Mailer Architecture | Automatic failover to platform mailer with zero golfer receipt loss | ✅ Complete |
+| Live Connection Diagnostics | 1-click test email and test SMS tools on the admin dashboard | ✅ Complete |
+| Custom Notes & Policies | Merges custom dress code, parking directions, and email footers into emails | ✅ Complete |
+| 24-Hour Scheduled Reminder Cron | Background worker to automatically dispatch reminders 24 hours prior to tee time | ⚠️ *Identified Gap* |
+
+---
+
+### Module G: Scorecards, Stats & USGA Handicap (100% COMPLETE)
+| Feature | Implementation Details | Status |
+|---|---|---|
+| Digital Scorecard Grid | Authentic 18-hole score entry with circled birdies and boxed bogeys (`/rounds/new`) | ✅ Complete |
+| Round History & Breakdown | View past rounds, score to par, gross/net totals (`/rounds`, `/rounds/:id`) | ✅ Complete |
+| USGA / WHS Handicap Tracker | Real-time handicap differential calculation and season trend graphs (`/stats`) | ✅ Complete |
+| Performance Analytics | Fairways in regulation, GIR %, putts per hole, scoring distribution | ✅ Complete |
+| Printable / PDF Scorecards | Export official 18-hole scorecard or booking voucher as PDF | ⚠️ *Identified Gap* |
+
+---
+
+### Module H: Tournaments & Driving Range Mode (100% COMPLETE)
+| Feature | Implementation Details | Status |
+|---|---|---|
+| Tournament Management | Create tournaments, set formats (Stroke Play, Scramble, Match Play), entry fees (`/dashboard/tournaments`) | ✅ Complete |
+| Tournament Registration | Golfer registration with entry fee checkout (`/tournaments`, `/tournaments/:id`) | ✅ Complete |
+| Live Leaderboards | Real-time standings with gross/net scoring and flight rankings | ✅ Complete |
+| Driving Range Bay Booking | Reserve simulator & grass bays with hourly pricing (`/range`) | ✅ Complete |
+| Range Admin Bay Manager | Live bay status board, check-in, and active session countdown timers (`/dashboard/range`) | ✅ Complete |
+
+---
+
+### Module I: Golfer CRM & Clubhouse Operations (100% COMPLETE)
+| Feature | Implementation Details | Status |
+|---|---|---|
+| Golfer Directory | Searchable member and guest database with contact info (`/dashboard/golfers`) | ✅ Complete |
+| Lifetime Spend & Stats | Total rounds played, tournament entries, and lifetime spend per golfer | ✅ Complete |
+| Staff Management | Invite staff members, manage roles, and toggle active status (`/dashboard/staff`) | ✅ Complete |
+| Clubhouse Dashboard | Today's revenue, occupancy rates, check-in metrics (`/dashboard`) | ✅ Complete |
+| Membership Tiers & Annual Passes | Member IDs, annual pass discounts (e.g. 100% green fee waiver) | ⚠️ *Identified Gap* |
+
+---
+
+## 5. Comprehensive Gap Analysis
+
+The core application is robust and feature-complete. The following 7 strategic gaps have been identified to elevate OpenGolf into an enterprise-grade platform:
+
+```mermaid
+graph TD
+    subgraph "High Priority Gaps (Next Sprint)"
+        G1["1. Background 24h Reminder Cron Worker"]
+        G2["2. Live Course Weather & Wind Widget"]
+        G3["3. Pro Shop & Equipment Add-ons at Checkout"]
+    end
+
+    subgraph "Medium Priority Gaps (Enhancement Phase)"
+        G4["4. Membership Tiers & Annual Passes"]
+        G5["5. PDF Receipts & Apple Wallet Passes"]
+        G6["6. Public Reviews & Star Ratings"]
+        G7["7. Google & Apple OAuth Social Sign-In"]
+    end
+```
+
+---
+
+### Detailed Breakdown of Identified Gaps
+
+#### 🔴 Gap 1: 24-Hour Scheduled Reminder Background Worker
+- **Problem**: `TenantNotificationSettings` has a toggle for `SendReminder24HoursBefore`, but reminders currently require manual triggers.
+- **Solution**: Implement an ASP.NET Core `BackgroundService` / `IHostedService` (e.g. `TeeTimeReminderWorker.cs`) that runs every hour, queries upcoming `Bookings` within the 23–25 hour window that haven't received a reminder, and dispatches SMS/Email via `ITenantNotificationService`.
+
+#### 🔴 Gap 2: Live Weather & Wind Conditions Widget
+- **Problem**: Golfers making decisions on tee times want to know the forecast (rain, wind speed, temperature) at the course location.
+- **Solution**: Integrate Open-Meteo or WeatherAPI (free tier, no key required or simple config) into `CourseProfile.tsx` and `Booking.tsx` to display real-time weather and wind direction for the course coordinates/address.
+
+#### 🔴 Gap 3: Pro Shop & Rental Add-Ons during Booking Checkout
+- **Problem**: Golfers often want to reserve a Golf Cart ($20), Pull Cart ($5), or Pre-purchased Range Bucket ($10) when booking their tee time.
+- **Solution**: Add an `AddOns` selector on the `/booking` page before checkout that calculates total price and passes itemized line items to Stripe Connect and the confirmation receipt.
+
+#### 🟡 Gap 4: Membership Tiers & Member Discount Passes
+- **Problem**: Private and semi-private clubs have annual members who should not pay standard public green fees.
+- **Solution**: Add `MembershipType` (Public, Full Member, Senior, Weekday) to `ApplicationUser` or a `TenantMembership` entity. When a logged-in member books, the pricing engine applies member pricing ($0 or discounted rate) automatically.
+
+#### 🟡 Gap 5: PDF Receipts, Apple Wallet Passes & Printable Scorecards
+- **Problem**: Golfers and tournament players want physical scorecard prints or Apple Wallet pass vouchers on their phone.
+- **Solution**: Add a clean printable CSS media sheet (`@media print`) and a 1-click "Download PDF Receipt / Scorecard" button on `/bookings` and `/rounds/:id`.
+
+#### 🟡 Gap 6: Public Course Reviews & Ratings
+- **Problem**: Golfers browsing `/courses` cannot see reviews from other golfers.
+- **Solution**: Add a 5-star rating and verified player review model (`CourseReview`) where golfers who completed a round can submit reviews and photos.
+
+#### 🟡 Gap 7: Google & Apple OAuth Social Logins
+- **Problem**: Reduces friction for new golfers registering on mobile devices.
+- **Solution**: Add ASP.NET Core `Microsoft.AspNetCore.Authentication.Google` and frontend Google Identity Services button.
+
+---
+
+## 6. Recommended Next Sprint Priorities
+
+1. **Sprint 1 (Automation & Polish)**:
+   - Build **Gap 1** (`TeeTimeReminderWorker.cs` background cron service for 24h reminders).
+   - Build **Gap 2** (Live Weather & Wind widget on Course Profile & Booking pages).
+2. **Sprint 2 (Revenue & Operations)**:
+   - Build **Gap 3** (Golf Cart & Equipment Rental Add-ons at checkout).
+   - Build **Gap 4** (Club Membership Tiers & Member discount rate engine).
+3. **Sprint 3 (Player Experience)**:
+   - Build **Gap 5** (Printable Scorecard & PDF Receipts).
+   - Build **Gap 6** (Course Reviews & Ratings).

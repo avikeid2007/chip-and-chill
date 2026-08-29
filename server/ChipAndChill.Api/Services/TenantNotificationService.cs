@@ -15,6 +15,9 @@ public interface ITenantNotificationService
     Task SendBookingCancellationAsync(Guid tenantId, Booking booking, ApplicationUser? user, decimal refundAmount);
     Task SendTournamentRegistrationAsync(Guid tenantId, TournamentRegistration reg, Tournament tournament);
     Task SendBayBookingConfirmationAsync(Guid tenantId, BayBooking booking, ApplicationUser? user, RangeBay? bay);
+    Task SendWaitlistPromotionAsync(Guid tenantId, ApplicationUser user, TeeSlot slot);
+    Task SendPaymentReceiptAsync(Guid tenantId, ApplicationUser user, Booking booking, decimal amount, string transactionId);
+    Task SendRefundNoticeAsync(Guid tenantId, ApplicationUser user, Booking booking, decimal refundedAmount);
     Task SendPasswordResetEmailAsync(ApplicationUser user, string resetLink, Guid? preferredTenantId = null);
     Task<TestNotificationResult> SendTestEmailAsync(Guid tenantId, string targetEmail, TenantNotificationSettings? customSettings = null);
     Task<TestNotificationResult> SendTestSmsAsync(Guid tenantId, string targetPhone, TenantNotificationSettings? customSettings = null);
@@ -159,7 +162,7 @@ public class TenantNotificationService : ITenantNotificationService
         var settings = await _db.TenantNotificationSettings.IgnoreQueryFilters().FirstOrDefaultAsync(s => s.TenantId == tenantId);
 
         var courseName = tenant?.Name ?? "Driving Range";
-        var bayName = bay?.Name ?? $"Bay #{bay?.BayNumber}";
+        var bayName = bay?.Name ?? (bay != null ? $"Bay #{bay.BayNumber}" : "Driving Range Bay");
         var currency = tenant?.CurrencySymbol ?? "₹";
 
         var subject = $"Range Bay Confirmed — {courseName}";
@@ -173,6 +176,64 @@ public class TenantNotificationService : ITenantNotificationService
                    $"Have a great practice session!\n— {courseName}";
 
         await DispatchEmailAsync(settings, tenant, email, subject, body);
+    }
+
+    public async Task SendWaitlistPromotionAsync(Guid tenantId, ApplicationUser user, TeeSlot slot)
+    {
+        if (string.IsNullOrWhiteSpace(user.Email)) return;
+
+        var tenant = await _db.Tenants.IgnoreQueryFilters().FirstOrDefaultAsync(t => t.Id == tenantId);
+        var settings = await _db.TenantNotificationSettings.IgnoreQueryFilters().FirstOrDefaultAsync(s => s.TenantId == tenantId);
+
+        var courseName = tenant?.Name ?? "OpenGolf";
+        var subject = $"A Tee Time Spot Opened Up — {courseName}";
+        var body = $"Hi {user.FirstName},\n\n" +
+                   $"Good news! A spot just opened for the {slot.StartTime:f} tee time at {courseName}.\n" +
+                   $"You were next on the waitlist — book your slot online now before it fills up!\n\n" +
+                   $"— {courseName} Team";
+
+        await DispatchEmailAsync(settings, tenant, user.Email, subject, body);
+    }
+
+    public async Task SendPaymentReceiptAsync(Guid tenantId, ApplicationUser user, Booking booking, decimal amount, string transactionId)
+    {
+        if (string.IsNullOrWhiteSpace(user.Email)) return;
+
+        var tenant = await _db.Tenants.IgnoreQueryFilters().FirstOrDefaultAsync(t => t.Id == tenantId);
+        var settings = await _db.TenantNotificationSettings.IgnoreQueryFilters().FirstOrDefaultAsync(s => s.TenantId == tenantId);
+
+        var courseName = tenant?.Name ?? "OpenGolf";
+        var currency = tenant?.CurrencySymbol ?? "₹";
+        var startTimeStr = booking.TeeSlot != null ? booking.TeeSlot.StartTime.ToString("f") : "Upcoming";
+
+        var subject = $"Payment Receipt — {courseName}";
+        var body = $"Hi {user.FirstName},\n\n" +
+                   $"Thank you! Your payment of {currency}{amount:F2} for {booking.PartySize} player(s) has been received.\n" +
+                   $"• Facility: {courseName}\n" +
+                   $"• Transaction ID: {transactionId}\n" +
+                   $"• Tee Time: {startTimeStr} (UTC)\n\n" +
+                   $"— {courseName} Team";
+
+        await DispatchEmailAsync(settings, tenant, user.Email, subject, body);
+    }
+
+    public async Task SendRefundNoticeAsync(Guid tenantId, ApplicationUser user, Booking booking, decimal refundedAmount)
+    {
+        if (string.IsNullOrWhiteSpace(user.Email)) return;
+
+        var tenant = await _db.Tenants.IgnoreQueryFilters().FirstOrDefaultAsync(t => t.Id == tenantId);
+        var settings = await _db.TenantNotificationSettings.IgnoreQueryFilters().FirstOrDefaultAsync(s => s.TenantId == tenantId);
+
+        var courseName = tenant?.Name ?? "OpenGolf";
+        var currency = tenant?.CurrencySymbol ?? "₹";
+        var startTimeStr = booking.TeeSlot != null ? booking.TeeSlot.StartTime.ToString("f") : "Upcoming";
+
+        var subject = $"Refund Processed — {currency}{refundedAmount:F2} ({courseName})";
+        var body = $"Hi {user.FirstName},\n\n" +
+                   $"Your refund of {currency}{refundedAmount:F2} for the tee time on {startTimeStr} (UTC) has been processed.\n\n" +
+                   $"— {courseName} Team";
+
+        await DispatchEmailAsync(settings, tenant, user.Email, subject, body);
     }
 
     public async Task SendPasswordResetEmailAsync(ApplicationUser user, string resetLink, Guid? preferredTenantId = null)

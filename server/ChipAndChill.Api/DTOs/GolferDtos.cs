@@ -13,7 +13,11 @@ public record TenantGolferSummaryDto(
     int TotalRangeBookings,
     int TotalRounds,
     decimal LifetimeSpend,
-    DateTime? LastActivityAt
+    DateTime? LastActivityAt,
+    string? AvatarUrl = null,
+    string? City = null,
+    string? HomeClubName = null,
+    string? PreferredTee = null
 );
 
 public record TenantGolferRecentBookingDto(
@@ -62,7 +66,25 @@ public record TenantGolferDetailDto(
     DateTime? LastActivityAt,
     List<TenantGolferRecentBookingDto> RecentBookings,
     List<TenantGolferRecentTournamentDto> RecentTournaments,
-    List<TenantGolferRecentRangeDto> RecentRangeSessions
+    List<TenantGolferRecentRangeDto> RecentRangeSessions,
+    // Golfer Passport Fields
+    string? AvatarUrl = null,
+    string? Bio = null,
+    string? City = null,
+    string? Country = null,
+    string? HomeClubName = null,
+    string? Handedness = null,
+    string? PreferredTee = null,
+    string? AverageScore = null,
+    string? PlayFrequency = null,
+    string? Driver = null,
+    string? Irons = null,
+    string? Putter = null,
+    string? GolfBall = null,
+    string? EmergencyContactName = null,
+    string? EmergencyContactPhone = null,
+    bool SmsAlertsEnabled = true,
+    bool MarketingEnabled = false
 );
 
 public record CreateTenantGolferRequest(
@@ -73,4 +95,3 @@ public record CreateTenantGolferRequest(
     double? HandicapIndex,
     string? Password
 );
-

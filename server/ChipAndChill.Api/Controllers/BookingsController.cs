@@ -10,6 +10,44 @@ using System.Security.Claims;
 
 namespace ChipAndChill.Api.Controllers;
 
+public record GenerateBulkSlotsRequest(
+    DateOnly StartDate,
+    DateOnly EndDate,
+    string? FirstTeeTime = null,
+    string? LastTeeTime = null,
+    int? SlotIntervalMinutes = null,
+    int? DefaultMaxPlayers = null,
+    decimal? WeekdayPrice = null,
+    decimal? WeekendPrice = null
+);
+
+public record BulkGenerateResponse(int SlotsCreated, int SlotsSkipped, int TotalDaysProcessed, string Message);
+
+public record ScheduleSettingsDto(
+    Guid Id,
+    Guid TenantId,
+    string FirstTeeTime,
+    string LastTeeTime,
+    int SlotIntervalMinutes,
+    int DefaultMaxPlayers,
+    decimal WeekdayPrice,
+    decimal WeekendPrice,
+    int AdvanceBookingDays,
+    bool AutoGenerateEnabled,
+    DateTime UpdatedAt
+);
+
+public record UpdateScheduleSettingsRequest(
+    string FirstTeeTime,
+    string LastTeeTime,
+    int SlotIntervalMinutes,
+    int DefaultMaxPlayers,
+    decimal WeekdayPrice,
+    decimal WeekendPrice,
+    int AdvanceBookingDays,
+    bool AutoGenerateEnabled
+);
+
 [ApiController]
 [Route("api/tenants/{tenantId:guid}")]
 public class BookingsController : ControllerBase
@@ -19,19 +57,116 @@ public class BookingsController : ControllerBase
     private readonly IEmailSender _emailSender;
     private readonly IPricingEngine _pricingEngine;
     private readonly IPaymentService _paymentService;
+    private readonly ITeeSlotGeneratorService _slotGenerator;
 
     public BookingsController(
         AppDbContext db,
         ITenantNotificationService notificationService,
         IEmailSender emailSender,
         IPricingEngine pricingEngine,
-        IPaymentService paymentService)
+        IPaymentService paymentService,
+        ITeeSlotGeneratorService slotGenerator)
     {
         _db = db;
         _notificationService = notificationService;
         _emailSender = emailSender;
         _pricingEngine = pricingEngine;
         _paymentService = paymentService;
+        _slotGenerator = slotGenerator;
+    }
+
+    // GET /api/tenants/{tenantId}/schedule-settings
+    [HttpGet("schedule-settings")]
+    [Authorize(Roles = "CourseAdmin,Staff,SuperAdmin")]
+    [TenantScoped]
+    public async Task<ActionResult<ScheduleSettingsDto>> GetScheduleSettings(Guid tenantId)
+    {
+        var s = await _slotGenerator.GetOrCreateSettingsAsync(tenantId);
+        return Ok(new ScheduleSettingsDto(
+            s.Id,
+            s.TenantId,
+            s.FirstTeeTime,
+            s.LastTeeTime,
+            s.SlotIntervalMinutes,
+            s.DefaultMaxPlayers,
+            s.WeekdayPrice,
+            s.WeekendPrice,
+            s.AdvanceBookingDays,
+            s.AutoGenerateEnabled,
+            s.UpdatedAt
+        ));
+    }
+
+    // PUT /api/tenants/{tenantId}/schedule-settings
+    [HttpPut("schedule-settings")]
+    [Authorize(Roles = "CourseAdmin,Staff,SuperAdmin")]
+    [TenantScoped]
+    public async Task<ActionResult<ScheduleSettingsDto>> UpdateScheduleSettings(Guid tenantId, UpdateScheduleSettingsRequest req)
+    {
+        var updated = new TenantScheduleSettings
+        {
+            TenantId = tenantId,
+            FirstTeeTime = req.FirstTeeTime,
+            LastTeeTime = req.LastTeeTime,
+            SlotIntervalMinutes = req.SlotIntervalMinutes,
+            DefaultMaxPlayers = req.DefaultMaxPlayers,
+            WeekdayPrice = req.WeekdayPrice,
+            WeekendPrice = req.WeekendPrice,
+            AdvanceBookingDays = req.AdvanceBookingDays,
+            AutoGenerateEnabled = req.AutoGenerateEnabled
+        };
+
+        var s = await _slotGenerator.UpdateSettingsAsync(tenantId, updated);
+        return Ok(new ScheduleSettingsDto(
+            s.Id,
+            s.TenantId,
+            s.FirstTeeTime,
+            s.LastTeeTime,
+            s.SlotIntervalMinutes,
+            s.DefaultMaxPlayers,
+            s.WeekdayPrice,
+            s.WeekendPrice,
+            s.AdvanceBookingDays,
+            s.AutoGenerateEnabled,
+            s.UpdatedAt
+        ));
+    }
+
+    // POST /api/tenants/{tenantId}/tee-slots/generate-bulk — 1-click generation for a day or range
+    [HttpPost("tee-slots/generate-bulk")]
+    [Authorize(Roles = "CourseAdmin,Staff,SuperAdmin")]
+    [TenantScoped]
+    public async Task<ActionResult<BulkGenerateResponse>> GenerateBulkSlots(Guid tenantId, GenerateBulkSlotsRequest req)
+    {
+        if (req.EndDate < req.StartDate)
+            return BadRequest("End date must be on or after start date.");
+
+        var diff = req.EndDate.DayNumber - req.StartDate.DayNumber;
+        if (diff > 90)
+            return BadRequest("Cannot generate more than 90 days in a single batch.");
+
+        TenantScheduleSettings? custom = null;
+        if (req.FirstTeeTime != null || req.LastTeeTime != null || req.SlotIntervalMinutes.HasValue || req.WeekdayPrice.HasValue || req.WeekendPrice.HasValue)
+        {
+            var current = await _slotGenerator.GetOrCreateSettingsAsync(tenantId);
+            custom = new TenantScheduleSettings
+            {
+                TenantId = tenantId,
+                FirstTeeTime = req.FirstTeeTime ?? current.FirstTeeTime,
+                LastTeeTime = req.LastTeeTime ?? current.LastTeeTime,
+                SlotIntervalMinutes = req.SlotIntervalMinutes ?? current.SlotIntervalMinutes,
+                DefaultMaxPlayers = req.DefaultMaxPlayers ?? current.DefaultMaxPlayers,
+                WeekdayPrice = req.WeekdayPrice ?? current.WeekdayPrice,
+                WeekendPrice = req.WeekendPrice ?? current.WeekendPrice,
+                AdvanceBookingDays = current.AdvanceBookingDays,
+                AutoGenerateEnabled = current.AutoGenerateEnabled
+            };
+        }
+
+        var result = await _slotGenerator.GenerateSlotsForTenantAsync(tenantId, req.StartDate, req.EndDate, custom);
+
+        var msg = $"Successfully created {result.SlotsCreated} tee slots across {result.TotalDaysProcessed} day(s). ({result.SlotsSkipped} existing slots preserved).";
+        return Ok(new BulkGenerateResponse(result.SlotsCreated, result.SlotsSkipped, result.TotalDaysProcessed, msg));
     }
 
     // GET /api/tenants/{tenantId}/tee-slots?date=2026-08-25[&includeBlocked=true]
@@ -53,7 +188,7 @@ public class BookingsController : ControllerBase
         var response = slots.Select(s =>
         {
             var booked = s.Bookings.Where(b => b.Status != BookingStatus.Cancelled).Sum(b => b.PartySize);
-            var status = s.IsBlocked ? "blocked" : booked >= s.MaxPlayers ? "full" : booked >= s.MaxPlayers - 1 ? "low" : "open";
+            var status = s.IsBlocked ? "blocked" : booked >= s.MaxPlayers ? "full" : (s.MaxPlayers > 1 && booked >= s.MaxPlayers - 1 && booked > 0) ? "low" : "open";
             return new TeeSlotResponse(s.Id, s.StartTime, s.MaxPlayers, booked, s.Price, status);
         });
 
@@ -98,6 +233,9 @@ public class BookingsController : ControllerBase
             .FirstOrDefaultAsync(s => s.Id == req.TeeSlotId && s.TenantId == tenantId);
 
         if (slot == null) return NotFound("Tee slot not found.");
+
+        if (slot.StartTime.Date < DateTime.UtcNow.Date)
+            return BadRequest("Cannot book a tee slot for a past date.");
 
         var alreadyBooked = slot.Bookings.Where(b => b.Status != BookingStatus.Cancelled).Sum(b => b.PartySize);
         if (alreadyBooked + req.PartySize > slot.MaxPlayers)
@@ -163,12 +301,20 @@ public class BookingsController : ControllerBase
     [Authorize]
     public async Task<IActionResult> CancelBooking(Guid tenantId, Guid bookingId)
     {
+        var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (userIdClaim == null || !Guid.TryParse(userIdClaim, out var userId))
+            return Unauthorized();
+
         var booking = await _db.Bookings.IgnoreQueryFilters()
             .Include(b => b.User)
             .Include(b => b.TeeSlot)
             .Include(b => b.Tenant)
             .FirstOrDefaultAsync(b => b.Id == bookingId && b.TenantId == tenantId);
         if (booking == null) return NotFound();
+
+        var isStaffOrAdmin = User.IsInRole("CourseAdmin") || User.IsInRole("Staff") || User.IsInRole("SuperAdmin");
+        if (booking.UserId != userId && !isStaffOrAdmin)
+            return Forbid();
 
         var wasPaid = booking.PaymentStatus == PaymentStatus.Paid;
         var paidAmount = booking.AmountPaid;
@@ -187,7 +333,7 @@ public class BookingsController : ControllerBase
             await _notificationService.SendBookingCancellationAsync(tenantId, booking, booking.User, wasPaid ? paidAmount : 0);
         }
 
-        // Waitlist auto-notify: email the earliest active waitlist entry for this slot.
+        // Waitlist auto-notify: email the earliest active waitlist entry for this slot via course notification service.
         var nextInLine = await _db.WaitlistEntries
             .IgnoreQueryFilters()
             .Where(w => w.TeeSlotId == booking.TeeSlotId && !w.Notified)
@@ -196,15 +342,9 @@ public class BookingsController : ControllerBase
             .Include(w => w.TeeSlot)
             .FirstOrDefaultAsync();
 
-        if (nextInLine?.User?.Email != null && nextInLine.TeeSlot != null)
+        if (nextInLine?.User != null && nextInLine.TeeSlot != null)
         {
-            await _emailSender.SendAsync(new EmailMessage(
-                nextInLine.User.Email,
-                $"A tee time opened up — {nextInLine.TeeSlot.StartTime:MMM d, h:mm tt}",
-                $"Hi {nextInLine.User.FirstName},\n\n" +
-                $"Good news! A spot just opened for the {nextInLine.TeeSlot.StartTime:f} (UTC) tee time.\n" +
-                $"You were first on the waitlist — book it before someone else does!\n\n" +
-                "— Chip & Chill"));
+            await _notificationService.SendWaitlistPromotionAsync(tenantId, nextInLine.User, nextInLine.TeeSlot);
             nextInLine.Notified = true;
             await _db.SaveChangesAsync();
         }

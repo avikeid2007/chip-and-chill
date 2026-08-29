@@ -1,7 +1,6 @@
-import { useEffect, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useEffect, useState, useMemo } from "react";
+import { useSearchParams, Link } from "react-router-dom";
 import NavBar from "../components/NavBar";
-import TeeTicker from "../components/TeeTicker";
 import PaymentModal from "../components/PaymentModal";
 import type { TeeSlot } from "../types";
 import { useAuth } from "../api/AuthContext";
@@ -10,26 +9,39 @@ import type { Booking as BookingType } from "../api/bookings";
 import { courseApi } from "../api/course";
 import type { Tenant } from "../api/course";
 import { apiFetch } from "../api/client";
-import { formatTime, toDateInput } from "../utils/time";
+import { formatTime, toDateInput, formatDateLabel } from "../utils/time";
+
+interface GolferSlot {
+  id: string;
+  time: string;
+  playersBooked: number;
+  playersMax: number;
+  price: number;
+  status: "open" | "low" | "full" | "blocked";
+}
 
 export default function Booking() {
   const { user } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const [courses, setCourses] = useState<Tenant[]>([]);
-  const [slots, setSlots] = useState<TeeSlot[]>([]);
-  const [selected, setSelected] = useState<TeeSlot | null>(null);
+  const [slots, setSlots] = useState<GolferSlot[]>([]);
+  const [selected, setSelected] = useState<GolferSlot | null>(null);
   const [confirmedBooking, setConfirmedBooking] = useState<BookingType | null>(null);
   const [waitlisted, setWaitlisted] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
   const [tenantId, setTenantId] = useState<string | null>(null);
   const [tenant, setTenant] = useState<Tenant | null>(null);
 
-  const [partySize, setPartySize] = useState(1);
+  const [partySize, setPartySize] = useState(() => parseInt(searchParams.get("partySize") || "1") || 1);
+  const [selectedDate, setSelectedDate] = useState(() => searchParams.get("date") || toDateInput(new Date()));
+  const [timeFilter, setTimeFilter] = useState<"all" | "morning" | "afternoon" | "twilight">("all");
   const [paymentChoice, setPaymentChoice] = useState<"online" | "course">("online");
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [pendingBookingId, setPendingBookingId] = useState<string | null>(null);
   const [bookingInProgress, setBookingInProgress] = useState(false);
 
+  // 1. Fetch available courses
   useEffect(() => {
     const urlTenantId = searchParams.get("tenantId") || searchParams.get("courseId");
 
@@ -38,7 +50,7 @@ export default function Booking() {
         setCourses(all);
         if (urlTenantId && all.some((c) => c.id === urlTenantId)) {
           setTenantId(urlTenantId);
-        } else if (user?.tenantId) {
+        } else if (user?.tenantId && all.some((c) => c.id === user.tenantId)) {
           setTenantId(user.tenantId);
         } else if (all.length > 0) {
           setTenantId(all[0].id);
@@ -47,6 +59,7 @@ export default function Booking() {
       .catch(() => {});
   }, [user?.tenantId, searchParams]);
 
+  // 2. Fetch selected tenant details
   useEffect(() => {
     if (!tenantId) return;
     courseApi.getTenant(tenantId)
@@ -59,16 +72,20 @@ export default function Booking() {
       .catch(() => {});
   }, [tenantId]);
 
+  // 3. Fetch tee slots for selected course and date
   useEffect(() => {
     if (!tenantId) return;
-    const today = toDateInput(new Date());
+    setSelected(null);
+    setLoading(true);
+    setError(null);
+
     apiFetch<{ id: string; startTime: string; maxPlayers: number; playersBooked: number; price: number; status: string }[]>(
-      `/api/tenants/${tenantId}/tee-slots?date=${today}`,
+      `/api/tenants/${tenantId}/tee-slots?date=${selectedDate}`,
       {},
       user?.token,
       tenantId
     )
-      .then((data) =>
+      .then((data) => {
         setSlots(
           data.map((s) => ({
             id: s.id,
@@ -78,10 +95,44 @@ export default function Booking() {
             price: s.price,
             status: (s.status === "blocked" ? "full" : s.status) as TeeSlot["status"],
           }))
-        )
-      )
-      .catch((err) => setError(err instanceof Error ? err.message : "Failed to load tee times."));
-  }, [tenantId, user?.token]);
+        );
+      })
+      .catch((err) => setError(err instanceof Error ? err.message : "Failed to load tee times."))
+      .finally(() => setLoading(false));
+  }, [tenantId, selectedDate, user?.token]);
+
+  // Filter slots by time of day
+  const filteredSlots = useMemo(() => {
+    return slots.filter((slot) => {
+      if (timeFilter === "all") return true;
+      // Parse hour from formatted time string (e.g. "07:30 AM", "02:00 PM")
+      const parts = slot.time.split(" ");
+      const [hourStr] = parts[0].split(":");
+      let hour = parseInt(hourStr, 10);
+      if (parts[1]?.toUpperCase() === "PM" && hour !== 12) hour += 12;
+      if (parts[1]?.toUpperCase() === "AM" && hour === 12) hour = 0;
+
+      if (timeFilter === "morning") return hour < 11;
+      if (timeFilter === "afternoon") return hour >= 11 && hour < 15;
+      if (timeFilter === "twilight") return hour >= 15;
+      return true;
+    });
+  }, [slots, timeFilter]);
+
+  // Next 7 days quick dates ribbon
+  const nextDays = useMemo(() => {
+    const arr = [];
+    for (let i = 0; i < 7; i++) {
+      const d = new Date();
+      d.setDate(d.getDate() + i);
+      const iso = toDateInput(d);
+      const dayName = i === 0 ? "Today" : i === 1 ? "Tomorrow" : d.toLocaleDateString("en-US", { weekday: "short" });
+      const dayNumber = d.getDate();
+      const monthName = d.toLocaleDateString("en-US", { month: "short" });
+      arr.push({ iso, dayName, dayNumber, monthName });
+    }
+    return arr;
+  }, []);
 
   async function handleBookSlot() {
     if (!selected || !user || !tenantId) return;
@@ -121,7 +172,7 @@ export default function Booking() {
     }
   }
 
-  async function joinWaitlist(slot: TeeSlot) {
+  async function joinWaitlist(slot: GolferSlot) {
     if (!user || !tenantId) return;
     setError(null);
     try {
@@ -132,194 +183,397 @@ export default function Booking() {
     }
   }
 
-  const totalPrice = (selected?.price ?? 50) * partySize;
+  const currencySymbol = tenant?.currencySymbol || "₹";
+  const totalPrice = (selected?.price ?? 500) * partySize;
 
   return (
-    <div className="min-h-screen bg-sand-light">
-      <div className="bg-gradient-to-br from-fairway to-turf">
+    <div className="min-h-screen bg-[#F7F9F6] text-gray-900 flex flex-col font-sans">
+      <div className="bg-gradient-to-br from-fairway to-turf text-white">
         <NavBar />
       </div>
-      <div className="page-shell fade-up">
-        <div className="eyebrow">Tee sheet</div>
-        <div className="flex items-center justify-between mb-8 flex-wrap gap-4">
-          <div>
-            <h1 className="text-3xl font-semibold tracking-tight text-fairway">
-              Book a Tee Time
-            </h1>
-            {courses.length > 1 ? (
-              <div className="mt-2 flex items-center gap-2">
-                <span className="text-xs font-semibold text-fairway/60 uppercase">Course:</span>
+
+      <main className="max-w-6xl mx-auto px-4 sm:px-6 py-8 w-full flex-1">
+        {/* Course Header Banner */}
+        <div className="bg-white rounded-3xl border border-sand-dark shadow-sm p-6 sm:p-8 mb-8 relative overflow-hidden">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 relative z-10">
+            <div>
+              <div className="flex items-center gap-2 mb-2">
+                <span className="px-3 py-1 rounded-full bg-turf/10 text-turf text-xs font-bold uppercase tracking-wider">
+                  ⛳ Championship Golf Course
+                </span>
+                {tenant?.requirePaymentUpfront && (
+                  <span className="px-3 py-1 rounded-full bg-amber-50 text-amber-800 border border-amber-200 text-xs font-semibold flex items-center gap-1">
+                    <span>💳</span> Online Payment Required
+                  </span>
+                )}
+              </div>
+
+              <h1 className="text-3xl sm:text-4xl font-extrabold text-fairway tracking-tight">
+                {tenant?.name || "Select a Golf Club"}
+              </h1>
+              
+              <p className="text-sm text-gray-600 mt-1 flex items-center gap-2">
+                <span>📍</span> {tenant?.address || "Premier Championship Links"} • 18 Holes • Par 72
+              </p>
+            </div>
+
+            {/* Course Selector if multiple exist */}
+            {courses.length > 1 && (
+              <div className="bg-[#F8FAF7] border border-gray-200 p-3 rounded-2xl flex flex-col gap-1 min-w-[240px]">
+                <span className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">Select Facility</span>
                 <select
                   value={tenantId || ""}
                   onChange={(e) => {
                     setTenantId(e.target.value);
                     setSearchParams({ tenantId: e.target.value });
                   }}
-                  className="text-sm font-semibold px-3 py-1.5 rounded-lg border border-sand-dark bg-white text-fairway focus:outline-none focus:ring-2 focus:ring-fairway cursor-pointer"
+                  className="text-xs font-bold bg-white text-gray-900 border border-gray-200 rounded-xl px-3 py-2 focus:ring-2 focus:ring-fairway cursor-pointer"
                 >
                   {courses.map((c) => (
                     <option key={c.id} value={c.id}>
-                      {c.name} {c.address ? `• ${c.address}` : ""}
+                      {c.name} {c.address ? `(${c.address})` : ""}
                     </option>
                   ))}
                 </select>
               </div>
-            ) : tenant ? (
-              <p className="text-sm text-fairway/70 mt-1">
-                {tenant.name} {tenant.address ? `• ${tenant.address}` : ""}
-              </p>
-            ) : null}
+            )}
           </div>
-          {tenant?.requirePaymentUpfront && (
-            <span className="text-xs bg-gold/20 text-fairway font-medium px-3 py-1.5 rounded-full border border-gold/30 flex items-center gap-1.5">
-              <span>💳</span> Online Payment Required
-            </span>
-          )}
         </div>
 
         {!confirmedBooking && waitlisted === null ? (
           <>
             {error && (
-              <p className="text-sm text-[#C0533F] bg-[#C0533F]/8 border border-[#C0533F]/20 rounded-md px-3 py-2 mb-4">
-                {error}
-              </p>
+              <div className="p-4 rounded-2xl bg-red-50 border border-red-200 text-red-700 text-sm font-semibold mb-6 flex items-center justify-between">
+                <span>⚠️ {error}</span>
+                <button onClick={() => setError(null)} className="text-red-500 hover:text-red-800 font-bold">✕</button>
+              </div>
             )}
-            <TeeTicker
-              courseName={tenant?.name || "Pine Hollow"}
-              slots={slots}
-              currencySymbol={tenant?.currencySymbol || "₹"}
-              onSelect={(slot) => setSelected(slot)}
-            />
 
+            {/* Date Selection Ribbon */}
+            <div className="bg-white rounded-3xl border border-sand-dark shadow-sm p-4 sm:p-6 mb-8">
+              <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-gray-500 flex items-center gap-1.5">
+                  <span>📅</span> Choose Date of Play
+                </h3>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-medium text-gray-500">Pick custom date:</span>
+                  <input
+                    type="date"
+                    value={selectedDate}
+                    onChange={(e) => {
+                      setSelectedDate(e.target.value);
+                      setSearchParams((prev) => {
+                        prev.set("date", e.target.value);
+                        return prev;
+                      });
+                    }}
+                    className="bg-gray-50 border border-gray-200 rounded-xl px-3 py-1 text-xs font-bold text-gray-900 cursor-pointer"
+                  />
+                </div>
+              </div>
+
+              {/* 7-Day Quick Strip */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-2">
+                {nextDays.map((day) => {
+                  const isSelected = selectedDate === day.iso;
+                  return (
+                    <button
+                      key={day.iso}
+                      type="button"
+                      onClick={() => {
+                        setSelectedDate(day.iso);
+                        setSearchParams((prev) => {
+                          prev.set("date", day.iso);
+                          return prev;
+                        });
+                      }}
+                      className={`p-3 rounded-2xl border text-center transition-all ${
+                        isSelected
+                          ? "bg-fairway text-white border-fairway shadow-md scale-[1.02]"
+                          : "bg-[#FAFBF9] border-gray-200/80 hover:bg-gray-100/80 text-gray-700"
+                      }`}
+                    >
+                      <span className="text-[11px] font-bold block uppercase tracking-wider opacity-80">{day.dayName}</span>
+                      <span className="text-xl font-extrabold block my-0.5">{day.dayNumber}</span>
+                      <span className="text-[11px] opacity-75">{day.monthName}</span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Time of Day Filter Tabs */}
+              <div className="flex items-center gap-2 mt-6 pt-4 border-t border-gray-100 overflow-x-auto">
+                <span className="text-xs font-bold text-gray-500 uppercase mr-1">Filter:</span>
+                {[
+                  { key: "all", label: `All Times (${slots.length})` },
+                  { key: "morning", label: "🌅 Morning (Before 11 AM)" },
+                  { key: "afternoon", label: "☀️ Midday (11 AM - 3 PM)" },
+                  { key: "twilight", label: "🌇 Twilight (After 3 PM)" },
+                ].map((tab) => (
+                  <button
+                    key={tab.key}
+                    type="button"
+                    onClick={() => setTimeFilter(tab.key as any)}
+                    className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-colors whitespace-nowrap ${
+                      timeFilter === tab.key
+                        ? "bg-turf text-white shadow-sm"
+                        : "bg-gray-100 hover:bg-gray-200 text-gray-700"
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Tee Slots Grid */}
+            <div className="space-y-4 mb-8">
+              <div className="flex items-center justify-between">
+                <h2 className="text-lg font-bold text-fairway">
+                  Available Tee Times for {formatDateLabel(selectedDate)}
+                </h2>
+                <span className="text-xs font-semibold text-gray-500">
+                  {filteredSlots.length} slot{filteredSlots.length !== 1 ? "s" : ""} found
+                </span>
+              </div>
+
+              {loading ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                  {Array.from({ length: 8 }).map((_, i) => (
+                    <div key={i} className="h-28 bg-white border border-gray-100 rounded-2xl animate-pulse" />
+                  ))}
+                </div>
+              ) : filteredSlots.length === 0 ? (
+                <div className="bg-white rounded-3xl border border-dashed border-gray-200 p-12 text-center">
+                  <div className="text-4xl mb-3">⛳</div>
+                  <h4 className="text-base font-bold text-gray-900 mb-1">No tee times available</h4>
+                  <p className="text-xs text-gray-500 max-w-md mx-auto mb-4">
+                    There are no open tee times matching your filters for {formatDateLabel(selectedDate)}. Please choose another day or filter.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const tom = new Date();
+                      tom.setDate(tom.getDate() + 1);
+                      setSelectedDate(toDateInput(tom));
+                    }}
+                    className="px-4 py-2 bg-fairway text-white text-xs font-bold rounded-xl hover:bg-fairway/90 transition-colors"
+                  >
+                    Check Tomorrow's Slots →
+                  </button>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                  {filteredSlots.map((slot) => {
+                    const isSelected = selected?.id === slot.id;
+                    const isFull = slot.status === "full";
+                    const openSpots = slot.playersMax - slot.playersBooked;
+
+                    return (
+                      <button
+                        key={slot.id}
+                        type="button"
+                        onClick={() => setSelected(slot)}
+                        className={`p-4 rounded-2xl border text-left transition-all relative flex flex-col justify-between ${
+                          isSelected
+                            ? "bg-emerald-50/80 border-turf shadow-md ring-2 ring-turf scale-[1.01]"
+                            : isFull
+                            ? "bg-gray-50 border-gray-200 opacity-60 hover:opacity-100"
+                            : "bg-white border-gray-200 hover:border-turf hover:shadow-sm"
+                        }`}
+                      >
+                        <div className="flex items-start justify-between">
+                          <span className="text-lg font-black text-gray-900 font-mono tracking-tight">
+                            {slot.time}
+                          </span>
+                          <span
+                            className={`px-2 py-0.5 rounded-md text-[10px] font-extrabold uppercase ${
+                              isFull
+                                ? "bg-red-100 text-red-700"
+                                : openSpots === 1
+                                ? "bg-amber-100 text-amber-800"
+                                : "bg-emerald-100 text-emerald-800"
+                            }`}
+                          >
+                            {isFull ? "Full (Waitlist)" : `${openSpots} Spots Left`}
+                          </span>
+                        </div>
+
+                        <div className="mt-3 pt-2.5 border-t border-gray-100 flex items-center justify-between">
+                          <span className="text-xs text-gray-500 font-medium">18 Holes</span>
+                          <span className="text-base font-extrabold text-fairway font-mono">
+                            {currencySymbol}{slot.price.toFixed(0)}
+                            <span className="text-[10px] font-normal text-gray-400"> / player</span>
+                          </span>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Selected Booking Checkout Box */}
             {selected && (
-              <div className="card p-6 mt-6 max-w-xl mx-auto space-y-5 border border-sand-dark">
+              <div className="bg-white rounded-3xl border-2 border-fairway shadow-xl p-6 sm:p-8 max-w-2xl mx-auto space-y-6 animate-fadeIn">
                 {selected.status !== "full" ? (
-                  <div className="space-y-4">
-                    {/* Rate header */}
-                    <div className="flex items-center justify-between pb-3 border-b border-sand">
+                  <>
+                    <div className="flex items-center justify-between pb-4 border-b border-gray-100 flex-wrap gap-2">
                       <div>
-                        <span className="text-xs font-semibold text-fairway/60 uppercase">Selected Time</span>
-                        <p className="text-mono font-bold text-2xl text-fairway">{selected.time}</p>
+                        <span className="text-xs font-bold uppercase tracking-wider text-turf block">Selected Tee Time</span>
+                        <h3 className="text-2xl font-black text-gray-900 font-mono">
+                          {selected.time} • {formatDateLabel(selectedDate)}
+                        </h3>
                       </div>
                       <div className="text-right">
-                        <span className="text-xs font-semibold text-fairway/60 uppercase">Rate per Player</span>
-                        <p className="font-display font-bold text-2xl text-fairway">{(tenant?.currencySymbol || "₹")}{selected.price.toFixed(2)}</p>
+                        <span className="text-xs text-gray-500 font-medium block">Rate per player</span>
+                        <span className="text-xl font-bold text-fairway font-mono">{currencySymbol}{selected.price.toFixed(2)}</span>
                       </div>
                     </div>
 
                     {/* Party Size Selector */}
                     <div>
-                      <label className="block text-xs font-semibold text-fairway/70 uppercase mb-1.5">
-                        Players
+                      <label className="block text-xs font-bold uppercase tracking-wider text-gray-700 mb-2">
+                        Number of Golfers (Max {selected.playersMax - selected.playersBooked} open spots)
                       </label>
-                      <div className="flex items-center gap-2">
-                        {[1, 2, 3, 4].map((n) => (
-                          <button
-                            key={n}
-                            type="button"
-                            onClick={() => setPartySize(n)}
-                            className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-colors border ${
-                              partySize === n
-                                ? "bg-fairway text-white border-fairway"
-                                : "bg-white text-fairway border-sand-dark hover:bg-mist"
-                            }`}
-                          >
-                            {n} {n === 1 ? "Golfer" : "Golfers"}
-                          </button>
-                        ))}
+                      <div className="grid grid-cols-4 gap-2">
+                        {[1, 2, 3, 4].map((n) => {
+                          const disabled = n > (selected.playersMax - selected.playersBooked);
+                          return (
+                            <button
+                              key={n}
+                              type="button"
+                              disabled={disabled}
+                              onClick={() => setPartySize(n)}
+                              className={`py-3 rounded-2xl text-xs font-bold transition-all border ${
+                                partySize === n
+                                  ? "bg-fairway text-white border-fairway shadow-sm"
+                                  : disabled
+                                  ? "bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed"
+                                  : "bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100"
+                              }`}
+                            >
+                              {n} {n === 1 ? "Player" : "Players"}
+                            </button>
+                          );
+                        })}
                       </div>
                     </div>
 
-                    {/* Payment Options */}
+                    {/* Payment Mode Selector */}
                     {!tenant?.requirePaymentUpfront ? (
                       <div className="pt-2">
-                        <label className="block text-xs font-semibold text-fairway/70 uppercase mb-2">
-                          Payment Option
+                        <label className="block text-xs font-bold uppercase tracking-wider text-gray-700 mb-2">
+                          Payment Mode
                         </label>
-                        <div className="grid grid-cols-2 gap-3">
-                          <label className={`flex items-start gap-2.5 p-3 rounded-lg border cursor-pointer transition-colors ${
-                            paymentChoice === "online" ? "bg-fairway/5 border-fairway" : "border-sand-dark hover:bg-mist"
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <label className={`flex items-start gap-3 p-3.5 rounded-2xl border cursor-pointer transition-all ${
+                            paymentChoice === "online" ? "bg-emerald-50/70 border-turf shadow-sm" : "border-gray-200 hover:bg-gray-50"
                           }`}>
                             <input
                               type="radio"
                               name="payMode"
                               checked={paymentChoice === "online"}
                               onChange={() => setPaymentChoice("online")}
-                              className="mt-0.5 text-fairway"
+                              className="mt-1 text-turf focus:ring-turf"
                             />
                             <div>
-                              <p className="text-xs font-bold text-fairway">Pay Online Now</p>
-                              <p className="text-[11px] text-fairway/60">Credit Card / Instant</p>
+                              <p className="text-xs font-bold text-gray-900">💳 Pay Online Now</p>
+                              <p className="text-[11px] text-gray-500">Instant credit card confirmation</p>
                             </div>
                           </label>
 
-                          <label className={`flex items-start gap-2.5 p-3 rounded-lg border cursor-pointer transition-colors ${
-                            paymentChoice === "course" ? "bg-fairway/5 border-fairway" : "border-sand-dark hover:bg-mist"
+                          <label className={`flex items-start gap-3 p-3.5 rounded-2xl border cursor-pointer transition-all ${
+                            paymentChoice === "course" ? "bg-emerald-50/70 border-turf shadow-sm" : "border-gray-200 hover:bg-gray-50"
                           }`}>
                             <input
                               type="radio"
                               name="payMode"
                               checked={paymentChoice === "course"}
                               onChange={() => setPaymentChoice("course")}
-                              className="mt-0.5 text-fairway"
+                              className="mt-1 text-turf focus:ring-turf"
                             />
                             <div>
-                              <p className="text-xs font-bold text-fairway">Pay at Pro Shop</p>
-                              <p className="text-[11px] text-fairway/60">Pay when checking in</p>
+                              <p className="text-xs font-bold text-gray-900">⛳ Pay at Pro Shop</p>
+                              <p className="text-[11px] text-gray-500">Pay when checking in at course</p>
                             </div>
                           </label>
                         </div>
                       </div>
                     ) : (
-                      <div className="bg-sand/40 p-3 rounded-lg border border-sand-dark text-xs text-fairway space-y-0.5">
-                        <p className="font-semibold">💳 Upfront Payment Policy</p>
-                        <p className="text-fairway/70">
-                          This course requires full online payment to secure tee time slots.
-                        </p>
+                      <div className="bg-amber-50 p-3.5 rounded-2xl border border-amber-200 text-xs text-amber-900 space-y-0.5">
+                        <p className="font-bold">💳 Course Online Payment Policy</p>
+                        <p className="opacity-80">This facility requires upfront payment to confirm tee time slots.</p>
                       </div>
                     )}
 
-                    <div className="flex items-center justify-between pt-3 border-t border-sand">
+                    {/* Price Total & Booking Action Button */}
+                    <div className="flex items-center justify-between pt-4 border-t border-gray-100 flex-wrap gap-4">
                       <div>
-                        <span className="text-xs text-fairway/60">Total</span>
-                        <p className="font-display font-bold text-xl text-fairway">{(tenant?.currencySymbol || "₹")}{totalPrice.toFixed(2)}</p>
+                        <span className="text-xs text-gray-500 block">Total Booking Price:</span>
+                        <p className="text-2xl font-black text-fairway font-mono">
+                          {currencySymbol}{totalPrice.toFixed(2)}
+                          <span className="text-xs font-normal text-gray-400"> ({partySize} player{partySize > 1 ? "s" : ""})</span>
+                        </p>
                       </div>
+
                       {user ? (
                         <button
+                          type="button"
                           onClick={handleBookSlot}
                           disabled={bookingInProgress}
-                          className="btn-primary flex items-center gap-2"
+                          className="px-6 py-3.5 bg-fairway text-white rounded-2xl text-sm font-extrabold shadow-lg hover:bg-fairway/90 transition-all flex items-center gap-2 disabled:opacity-50"
                         >
                           {bookingInProgress
-                            ? "Reserving..."
+                            ? "Processing Reservation..."
                             : paymentChoice === "online" || tenant?.requirePaymentUpfront
-                            ? `Pay & Confirm (${tenant?.currencySymbol || "₹"}${totalPrice.toFixed(2)})`
-                            : "Confirm Booking"}
+                            ? `Proceed to Pay ${currencySymbol}${totalPrice.toFixed(2)} →`
+                            : "Confirm & Reserve Tee Time →"}
                         </button>
                       ) : (
-                        <p className="text-sm text-ink-soft">
-                          <a href="/login" className="text-turf font-medium">Log in</a> to book.
-                        </p>
+                        <div className="flex items-center gap-3">
+                          <Link
+                            to={`/login?redirect=${encodeURIComponent(window.location.pathname + window.location.search)}`}
+                            className="px-5 py-2.5 bg-fairway text-white rounded-xl text-xs font-bold hover:bg-fairway/90 transition-colors"
+                          >
+                            Log In to Book
+                          </Link>
+                          <Link
+                            to={`/register?redirect=${encodeURIComponent(window.location.pathname + window.location.search)}`}
+                            className="px-4 py-2.5 bg-gray-100 text-gray-800 rounded-xl text-xs font-bold hover:bg-gray-200 transition-colors"
+                          >
+                            Sign Up
+                          </Link>
+                        </div>
                       )}
                     </div>
-                  </div>
+                  </>
                 ) : (
-                  <div className="space-y-4">
-                    <p className="text-sm text-ink-soft">
-                      <span className="text-mono font-semibold text-fairway">{selected.time}</span> is fully booked.
-                      Join the waitlist and we'll email you automatically when a spot opens up.
-                    </p>
+                  /* Waitlist Join Box */
+                  <div className="space-y-4 text-center py-2">
+                    <div className="text-3xl">⏳</div>
+                    <div>
+                      <h4 className="text-lg font-bold text-gray-900">{selected.time} is Fully Booked</h4>
+                      <p className="text-xs text-gray-500 max-w-sm mx-auto mt-1">
+                        Join the waitlist. We will automatically notify you by email the moment any golfer cancels!
+                      </p>
+                    </div>
+
                     {user ? (
                       <button
+                        type="button"
                         onClick={() => joinWaitlist(selected)}
-                        className="btn-outline w-full"
+                        className="px-6 py-3 bg-turf text-white rounded-2xl text-xs font-bold shadow hover:bg-turf/90 transition-colors"
                       >
-                        Join Waitlist for {partySize} {partySize === 1 ? "player" : "players"}
+                        Join Waitlist for {partySize} {partySize === 1 ? "Player" : "Players"}
                       </button>
                     ) : (
-                      <p className="text-sm text-ink-soft">
-                        <a href="/login" className="text-turf font-medium">Log in</a> to join waitlist.
-                      </p>
+                      <Link
+                        to="/login"
+                        className="inline-block px-5 py-2.5 bg-turf text-white rounded-xl text-xs font-bold hover:bg-turf/90"
+                      >
+                        Log In to Join Waitlist
+                      </Link>
                     )}
                   </div>
                 )}
@@ -327,62 +581,87 @@ export default function Booking() {
             )}
           </>
         ) : confirmedBooking ? (
-          <div className="card p-8 text-center max-w-md mx-auto space-y-4 border border-sand-dark">
-            <div className="w-14 h-14 rounded-full bg-green-100 text-green-700 flex items-center justify-center mx-auto text-3xl">
+          /* Confirmation Receipt Card */
+          <div className="bg-white rounded-3xl border border-sand-dark shadow-2xl p-8 max-w-md mx-auto text-center space-y-5 animate-fadeIn">
+            <div className="w-16 h-16 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center mx-auto text-3xl font-black">
               ✓
             </div>
+            
             <div>
-              <h3 className="text-2xl font-bold text-fairway mb-1">Tee Time Confirmed!</h3>
-              <p className="text-sm text-fairway/70">
-                You're booked for <span className="font-semibold text-fairway">{selected?.time}</span> ({confirmedBooking.partySize} player{confirmedBooking.partySize > 1 ? "s" : ""}).
+              <h3 className="text-2xl font-black text-gray-900 tracking-tight">Tee Time Confirmed!</h3>
+              <p className="text-xs text-gray-500 mt-1">
+                Your reservation at <strong className="text-fairway">{tenant?.name}</strong> is locked in.
               </p>
             </div>
 
-            <div className="p-4 rounded-xl bg-mist border border-sand text-left space-y-2 text-xs">
-              <div className="flex justify-between text-fairway">
-                <span>Payment Status:</span>
-                <span className={`font-bold ${confirmedBooking.paymentStatus === "Paid" ? "text-green-700" : "text-amber-700"}`}>
-                  {confirmedBooking.paymentStatus === "Paid" ? "✓ Paid Online via Stripe" : "Pay at Pro Shop"}
+            <div className="bg-[#F8FAF7] p-5 rounded-2xl border border-gray-200/80 text-left space-y-2 text-xs">
+              <div className="flex justify-between">
+                <span className="text-gray-500">Date & Time:</span>
+                <span className="font-bold text-gray-900">{selected?.time} • {formatDateLabel(selectedDate)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-500">Golfers:</span>
+                <span className="font-bold text-gray-900">{confirmedBooking.partySize} player(s)</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-500">Payment Status:</span>
+                <span className={`font-bold ${confirmedBooking.paymentStatus === "Paid" ? "text-emerald-700" : "text-amber-700"}`}>
+                  {confirmedBooking.paymentStatus === "Paid" ? "✓ Paid Online" : "Pay at Pro Shop"}
                 </span>
               </div>
-              <div className="flex justify-between text-fairway">
+              <div className="flex justify-between pt-2 border-t border-gray-200 font-black text-sm">
                 <span>Total Amount:</span>
-                <span className="font-bold">{(tenant?.currencySymbol || "₹")}{((selected?.price ?? 50) * (confirmedBooking.partySize || 1)).toFixed(2)}</span>
+                <span className="text-fairway font-mono">{currencySymbol}{((selected?.price ?? 500) * (confirmedBooking.partySize || 1)).toFixed(2)}</span>
               </div>
             </div>
 
-            <p className="text-xs text-fairway/60">
-              A confirmation email and calendar invitation have been sent to your registered email address.
+            <p className="text-[11px] text-gray-500">
+              A confirmation email has been dispatched with calendar details and dress code guidelines.
             </p>
 
-            <div className="pt-2">
-              <a
-                href="/bookings"
-                className="inline-block px-5 py-2.5 rounded-xl bg-fairway text-white text-sm font-medium hover:bg-fairway-dark transition-colors"
+            <div className="pt-3 flex items-center justify-center gap-3">
+              <Link
+                to="/bookings"
+                className="px-5 py-2.5 bg-fairway text-white rounded-xl text-xs font-bold hover:bg-fairway/90 transition-colors"
               >
                 View My Bookings
-              </a>
+              </Link>
+              <button
+                type="button"
+                onClick={() => {
+                  setConfirmedBooking(null);
+                  setSelected(null);
+                }}
+                className="px-4 py-2.5 bg-gray-100 text-gray-700 rounded-xl text-xs font-bold hover:bg-gray-200 transition-colors"
+              >
+                Book Another Slot
+              </button>
             </div>
           </div>
         ) : (
-          <div className="card p-8 text-center max-w-sm mx-auto space-y-3">
-            <div className="w-14 h-14 rounded-full bg-gold/20 text-gold flex items-center justify-center mx-auto text-3xl">
+          /* Waitlist Confirmation */
+          <div className="bg-white rounded-3xl border border-sand-dark shadow-2xl p-8 max-w-sm mx-auto text-center space-y-4 animate-fadeIn">
+            <div className="w-16 h-16 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center mx-auto text-3xl">
               ⏳
             </div>
-            <h3 className="text-xl font-semibold text-fairway">You're on the waitlist</h3>
-            <p className="text-sm text-ink-soft">
-              Position #{waitlisted} for {selected?.time}. We'll email you the moment a spot opens up!
+            <h3 className="text-xl font-bold text-gray-900">You're on the Waitlist</h3>
+            <p className="text-xs text-gray-500">
+              Position <strong>#{waitlisted}</strong> for {selected?.time}. We'll email you immediately if a spot opens!
             </p>
-            <div className="pt-3">
-              <button onClick={() => setWaitlisted(null)} className="btn-outline text-xs">
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={() => setWaitlisted(null)}
+                className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-xl text-xs font-bold"
+              >
                 Back to Tee Sheet
               </button>
             </div>
           </div>
         )}
-      </div>
+      </main>
 
-      {/* Checkout Modal */}
+      {/* Payment Modal */}
       {showPaymentModal && pendingBookingId && selected && tenantId && (
         <PaymentModal
           tenantId={tenantId}
@@ -393,7 +672,7 @@ export default function Booking() {
           partySize={partySize}
           pricePerPlayer={selected.price}
           totalPrice={totalPrice}
-          currencySymbol={tenant?.currencySymbol || "₹"}
+          currencySymbol={currencySymbol}
           onSuccess={handlePaymentSuccess}
           onClose={() => {
             setShowPaymentModal(false);

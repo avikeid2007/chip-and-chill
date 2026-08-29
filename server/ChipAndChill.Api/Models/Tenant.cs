@@ -23,6 +23,27 @@ public class Tenant
     public bool IsActive { get; set; } = true;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
+    // Course Visual Media & Contact
+    public string? CoverImageUrl { get; set; }
+    public string? Phone { get; set; }
+    public string? Email { get; set; }
+    public string? Website { get; set; }
+
+    // Course Architecture & Specifications
+    public string? Architect { get; set; }
+    public int? YearBuilt { get; set; }
+    public string? CourseType { get; set; } = "Championship Links";
+    public double? CourseRating { get; set; }
+    public int? SlopeRating { get; set; }
+    public string? GreensGrass { get; set; }
+    public string? FairwaysGrass { get; set; }
+
+    // Amenities (Comma-separated list or JSON)
+    public string? Amenities { get; set; } = "Driving Range,Putting Green,Pro Shop,GPS Carts,Clubhouse Restaurant,Locker Rooms,PGA Lessons";
+
+    // Policies
+    public string? DressCode { get; set; } = "Collared shirts and tailored golf attire required. Soft spikes only.";
+    public string? SpikePolicy { get; set; } = "Non-metal / soft spikes only.";
 
     // Stripe Connect & Payment Settings
     public string? StripeAccountId { get; set; }

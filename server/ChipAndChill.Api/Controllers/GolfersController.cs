@@ -131,7 +131,11 @@ public class GolfersController : ControllerBase
                 myRange.Count,
                 myRounds.Count,
                 totalSpend,
-                lastActivity
+                lastActivity,
+                u.AvatarUrl,
+                u.City,
+                u.HomeClubName,
+                u.PreferredTee
             ));
         }
 
@@ -328,7 +332,24 @@ public class GolfersController : ControllerBase
             lastActivity,
             recentBookingsDto,
             recentTournamentsDto,
-            recentRangeDto
+            recentRangeDto,
+            u.AvatarUrl,
+            u.Bio,
+            u.City,
+            u.Country,
+            u.HomeClubName,
+            u.Handedness,
+            u.PreferredTee,
+            u.AverageScore,
+            u.PlayFrequency,
+            u.Driver,
+            u.Irons,
+            u.Putter,
+            u.GolfBall,
+            u.EmergencyContactName,
+            u.EmergencyContactPhone,
+            u.SmsAlertsEnabled,
+            u.MarketingEnabled
         ));
     }
 
@@ -419,7 +440,8 @@ public class GolfersController : ControllerBase
 
     // POST /api/tenants/{tenantId}/golfers/seed-demo
     [HttpPost("seed-demo")]
-    [AllowAnonymous]
+    [Authorize(Roles = "CourseAdmin,Staff,SuperAdmin")]
+    [TenantScoped("tenantId")]
     public async Task<ActionResult> SeedDemoGolfers([FromRoute] Guid tenantId)
     {
         var tenant = await _db.Tenants.FindAsync(tenantId);

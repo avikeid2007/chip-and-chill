@@ -18,18 +18,18 @@ public class PaymentsController : ControllerBase
     private readonly AppDbContext _db;
     private readonly IPaymentService _paymentService;
     private readonly UserManager<ApplicationUser> _userManager;
-    private readonly IEmailSender _emailSender;
+    private readonly ITenantNotificationService _notificationService;
 
     public PaymentsController(
         AppDbContext db,
         IPaymentService paymentService,
         UserManager<ApplicationUser> userManager,
-        IEmailSender emailSender)
+        ITenantNotificationService notificationService)
     {
         _db = db;
         _paymentService = paymentService;
         _userManager = userManager;
-        _emailSender = emailSender;
+        _notificationService = notificationService;
     }
 
     [HttpPost("stripe/connect-link")]
@@ -126,18 +126,10 @@ public class PaymentsController : ControllerBase
             req.CardHolderName,
             req.CardNumberLast4);
 
-        // Send payment confirmation email
-        if (booking.User?.Email != null && booking.TeeSlot != null)
+        // Send payment confirmation email via tenant mailer
+        if (booking.User != null)
         {
-            var symbol = booking.Tenant?.CurrencySymbol ?? "₹";
-            await _emailSender.SendAsync(new EmailMessage(
-                booking.User.Email,
-                $"Payment Receipt — Tee time {booking.TeeSlot.StartTime:MMM d, h:mm tt}",
-                $"Hi {booking.User.FirstName},\n\n" +
-                $"Thank you! Your payment of {symbol}{totalAmount:F2} for {booking.PartySize} player(s) has been received.\n" +
-                $"Transaction ID: {confirmation.TransactionId}\n" +
-                $"Tee Time: {booking.TeeSlot.StartTime:f} (UTC)\n\n" +
-                "— Chip & Chill"));
+            await _notificationService.SendPaymentReceiptAsync(tenantId, booking.User, booking, totalAmount, confirmation.TransactionId ?? string.Empty);
         }
 
         return Ok(confirmation);
@@ -163,15 +155,9 @@ public class PaymentsController : ControllerBase
         var success = await _paymentService.ProcessRefundAsync(booking);
         if (!success) return BadRequest("Unable to process refund.");
 
-        if (booking.User?.Email != null && booking.TeeSlot != null)
+        if (booking.User != null)
         {
-            var symbol = booking.Tenant?.CurrencySymbol ?? "₹";
-            await _emailSender.SendAsync(new EmailMessage(
-                booking.User.Email,
-                $"Refund Processed — {symbol}{refundedAmount:F2}",
-                $"Hi {booking.User.FirstName},\n\n" +
-                $"Your payment of {symbol}{refundedAmount:F2} for the tee time on {booking.TeeSlot.StartTime:f} (UTC) has been refunded.\n\n" +
-                "— Chip & Chill"));
+            await _notificationService.SendRefundNoticeAsync(tenantId, booking.User, booking, refundedAmount);
         }
 
         return Ok(new RefundResponse(booking.Id, booking.PaymentStatus, refundedAmount));

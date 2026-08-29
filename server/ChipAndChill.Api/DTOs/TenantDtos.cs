@@ -13,7 +13,36 @@ public record UpdateTenantRequest(
     string? Timezone,
     string? Currency,
     string? CurrencySymbol,
-    bool? RequirePaymentUpfront);
+    bool? RequirePaymentUpfront,
+    string? CoverImageUrl = null,
+    string? Phone = null,
+    string? Email = null,
+    string? Website = null,
+    string? Architect = null,
+    int? YearBuilt = null,
+    string? CourseType = null,
+    double? CourseRating = null,
+    int? SlopeRating = null,
+    string? GreensGrass = null,
+    string? FairwaysGrass = null,
+    string? Amenities = null,
+    string? DressCode = null,
+    string? SpikePolicy = null
+);
+
+public record CourseWeatherDto(
+    string Condition,
+    string Description,
+    int TemperatureC,
+    int TemperatureF,
+    int FeelsLikeC,
+    int FeelsLikeF,
+    int WindSpeedMph,
+    string WindDirection,
+    int Humidity,
+    string PlayabilityRating,
+    string UpdatedAt
+);
 
 public record ResolvedTenantResponse(
     Guid Id,
@@ -28,4 +57,19 @@ public record ResolvedTenantResponse(
     string Currency,
     string CurrencySymbol,
     string? Address,
-    string? Description);
+    string? Description,
+    string? CoverImageUrl = null,
+    string? Phone = null,
+    string? Email = null,
+    string? Website = null,
+    string? Architect = null,
+    int? YearBuilt = null,
+    string? CourseType = null,
+    double? CourseRating = null,
+    int? SlopeRating = null,
+    string? GreensGrass = null,
+    string? FairwaysGrass = null,
+    string? Amenities = null,
+    string? DressCode = null,
+    string? SpikePolicy = null
+);

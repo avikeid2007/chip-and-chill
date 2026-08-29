@@ -243,6 +243,10 @@ export interface TenantGolferSummary {
   totalRounds: number;
   lifetimeSpend: number;
   lastActivityAt?: string | null;
+  avatarUrl?: string | null;
+  city?: string | null;
+  homeClubName?: string | null;
+  preferredTee?: string | null;
 }
 
 export interface TenantGolferRecentBooking {
@@ -279,4 +283,21 @@ export interface TenantGolferDetail extends TenantGolferSummary {
   recentBookings: TenantGolferRecentBooking[];
   recentTournaments: TenantGolferRecentTournament[];
   recentRangeSessions: TenantGolferRecentRange[];
+  avatarUrl?: string | null;
+  bio?: string | null;
+  city?: string | null;
+  country?: string | null;
+  homeClubName?: string | null;
+  handedness?: string | null;
+  preferredTee?: string | null;
+  averageScore?: string | null;
+  playFrequency?: string | null;
+  driver?: string | null;
+  irons?: string | null;
+  putter?: string | null;
+  golfBall?: string | null;
+  emergencyContactName?: string | null;
+  emergencyContactPhone?: string | null;
+  smsAlertsEnabled: boolean;
+  marketingEnabled: boolean;
 }

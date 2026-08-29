@@ -29,6 +29,7 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid
     public DbSet<BayBooking> BayBookings => Set<BayBooking>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
     public DbSet<TenantNotificationSettings> TenantNotificationSettings => Set<TenantNotificationSettings>();
+    public DbSet<TenantScheduleSettings> TenantScheduleSettings => Set<TenantScheduleSettings>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -40,6 +41,7 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid
         builder.Entity<TeeSlot>().HasQueryFilter(s => CurrentTenantId == null || s.TenantId == CurrentTenantId);
         builder.Entity<Booking>().HasQueryFilter(b => CurrentTenantId == null || b.TenantId == CurrentTenantId);
         builder.Entity<Round>().HasQueryFilter(r => CurrentTenantId == null || r.TenantId == CurrentTenantId);
+        builder.Entity<RoundHole>().HasQueryFilter(rh => CurrentTenantId == null || rh.Round!.TenantId == CurrentTenantId);
         builder.Entity<PricingRule>().HasQueryFilter(p => CurrentTenantId == null || p.TenantId == CurrentTenantId);
         builder.Entity<Tournament>().HasQueryFilter(t => CurrentTenantId == null || t.TenantId == CurrentTenantId);
         builder.Entity<TournamentRegistration>().HasQueryFilter(r => CurrentTenantId == null || r.TenantId == CurrentTenantId);
@@ -47,6 +49,7 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid
         builder.Entity<RangeBay>().HasQueryFilter(rb => CurrentTenantId == null || rb.TenantId == CurrentTenantId);
         builder.Entity<BayBooking>().HasQueryFilter(bb => CurrentTenantId == null || bb.TenantId == CurrentTenantId);
         builder.Entity<TenantNotificationSettings>().HasQueryFilter(n => CurrentTenantId == null || n.TenantId == CurrentTenantId);
+        builder.Entity<TenantScheduleSettings>().HasQueryFilter(ss => CurrentTenantId == null || ss.TenantId == CurrentTenantId);
 
         builder.Entity<Tenant>()
             .HasIndex(t => t.Subdomain)
@@ -169,6 +172,16 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid
             .HasOne(n => n.Tenant)
             .WithOne()
             .HasForeignKey<TenantNotificationSettings>(n => n.TenantId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.Entity<TenantScheduleSettings>()
+            .HasIndex(s => s.TenantId)
+            .IsUnique();
+
+        builder.Entity<TenantScheduleSettings>()
+            .HasOne(s => s.Tenant)
+            .WithOne()
+            .HasForeignKey<TenantScheduleSettings>(s => s.TenantId)
             .OnDelete(DeleteBehavior.Cascade);
     }
 }

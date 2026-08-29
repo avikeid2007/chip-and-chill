@@ -90,13 +90,22 @@ public class NotificationSettingsController : ControllerBase
 
         if (settings == null)
         {
-            // Create default settings if not exists yet
-            settings = new TenantNotificationSettings
+            try
             {
-                TenantId = tenantId
-            };
-            _db.TenantNotificationSettings.Add(settings);
-            await _db.SaveChangesAsync();
+                settings = new TenantNotificationSettings
+                {
+                    TenantId = tenantId
+                };
+                _db.TenantNotificationSettings.Add(settings);
+                await _db.SaveChangesAsync();
+            }
+            catch (DbUpdateException)
+            {
+                // In case of race condition, reload existing settings
+                settings = await _db.TenantNotificationSettings
+                    .IgnoreQueryFilters()
+                    .FirstOrDefaultAsync(s => s.TenantId == tenantId) ?? new TenantNotificationSettings { TenantId = tenantId };
+            }
         }
 
         return Ok(ToResponse(settings));

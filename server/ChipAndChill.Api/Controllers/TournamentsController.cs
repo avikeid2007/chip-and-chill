@@ -17,16 +17,16 @@ public class TournamentsController : ControllerBase
 {
     private readonly AppDbContext _db;
     private readonly UserManager<ApplicationUser> _userManager;
-    private readonly IEmailSender _emailSender;
+    private readonly ITenantNotificationService _notificationService;
 
     public TournamentsController(
         AppDbContext db,
         UserManager<ApplicationUser> userManager,
-        IEmailSender emailSender)
+        ITenantNotificationService notificationService)
     {
         _db = db;
         _userManager = userManager;
-        _emailSender = emailSender;
+        _notificationService = notificationService;
     }
 
     // GET /api/tenants/{tenantId}/tournaments
@@ -234,7 +234,7 @@ public class TournamentsController : ControllerBase
 
         if (tournament == null) return NotFound("Tournament not found.");
 
-        if (tournament.Status != TournamentStatus.Upcoming && tournament.Status != TournamentStatus.InProgress)
+        if (tournament.Status != TournamentStatus.Upcoming)
             return BadRequest("Tournament registration is closed.");
 
         var activeCount = tournament.Registrations.Count(r => r.Status != TournamentRegistrationStatus.Withdrawn);
@@ -266,6 +266,8 @@ public class TournamentsController : ControllerBase
         _db.TournamentRegistrations.Add(reg);
         await _db.SaveChangesAsync();
 
+        await _notificationService.SendTournamentRegistrationAsync(tenantId, reg, tournament);
+
         return Ok(new TournamentRegistrationDto(
             reg.Id,
             reg.TournamentId,
@@ -284,9 +286,13 @@ public class TournamentsController : ControllerBase
 
     // POST /api/tenants/{tenantId}/tournaments/{id}/registrations/{regId}/confirm-sandbox-payment
     [HttpPost("{id:guid}/registrations/{regId:guid}/confirm-sandbox-payment")]
-    [AllowAnonymous]
+    [Authorize]
     public async Task<ActionResult<TournamentRegistrationDto>> ConfirmSandboxPayment(Guid tenantId, Guid id, Guid regId)
     {
+        var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (userIdClaim == null || !Guid.TryParse(userIdClaim, out var userId))
+            return Unauthorized();
+
         var reg = await _db.TournamentRegistrations
             .IgnoreQueryFilters()
             .Include(r => r.Tournament)
@@ -294,12 +300,25 @@ public class TournamentsController : ControllerBase
 
         if (reg == null) return NotFound("Registration not found.");
 
+        var user = await _userManager.FindByIdAsync(userId.ToString());
+        var isStaffOrAdmin = User.IsInRole("CourseAdmin") || User.IsInRole("Staff") || User.IsInRole("SuperAdmin");
+        var isOwner = (reg.UserId.HasValue && reg.UserId == userId) || 
+                      (!reg.UserId.HasValue && user != null && string.Equals(user.Email, reg.GolferEmail, StringComparison.OrdinalIgnoreCase));
+
+        if (!isOwner && !isStaffOrAdmin)
+            return Forbid();
+
         reg.PaymentStatus = TournamentPaymentStatus.Paid;
         reg.AmountPaid = reg.Tournament?.EntryFee ?? 0m;
         reg.PaymentIntentId = $"sandbox_tourn_{Guid.NewGuid():N}";
         reg.Status = TournamentRegistrationStatus.Confirmed;
 
         await _db.SaveChangesAsync();
+
+        if (reg.Tournament != null)
+        {
+            await _notificationService.SendTournamentRegistrationAsync(tenantId, reg, reg.Tournament);
+        }
 
         return Ok(new TournamentRegistrationDto(
             reg.Id,
@@ -383,11 +402,23 @@ public class TournamentsController : ControllerBase
     [Authorize]
     public async Task<IActionResult> PostScore(Guid tenantId, Guid id, PostTournamentScoreRequest req)
     {
+        var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (userIdClaim == null || !Guid.TryParse(userIdClaim, out var userId))
+            return Unauthorized();
+
         var reg = await _db.TournamentRegistrations
             .IgnoreQueryFilters()
             .FirstOrDefaultAsync(r => r.TenantId == tenantId && r.TournamentId == id && r.Id == req.RegistrationId);
 
         if (reg == null) return NotFound("Registration not found.");
+
+        var user = await _userManager.FindByIdAsync(userId.ToString());
+        var isStaffOrAdmin = User.IsInRole("CourseAdmin") || User.IsInRole("Staff") || User.IsInRole("SuperAdmin");
+        var isOwner = (reg.UserId.HasValue && reg.UserId == userId) || 
+                      (!reg.UserId.HasValue && user != null && string.Equals(user.Email, reg.GolferEmail, StringComparison.OrdinalIgnoreCase));
+
+        if (!isOwner && !isStaffOrAdmin)
+            return Forbid();
 
         var existing = await _db.TournamentScores
             .IgnoreQueryFilters()

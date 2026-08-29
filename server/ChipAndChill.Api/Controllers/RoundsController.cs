@@ -76,6 +76,9 @@ public class RoundsController : ControllerBase
         var userId = CurrentUserId();
         if (userId == null) return Unauthorized();
 
+        var tenantExists = await _db.Tenants.AnyAsync(t => t.Id == req.TenantId);
+        if (!tenantExists) return BadRequest("Invalid course specified.");
+
         var round = new Round
         {
             TenantId = req.TenantId,
@@ -130,7 +133,7 @@ public class RoundsController : ControllerBase
         if (rounds.Count == 0)
             return Ok(new StatsResponse(null, null, null, 0, null, new List<TrendPoint>(), new List<HoleStat>(), 0));
 
-        // ---- WHS Handicap Index: average of best 8 differentials from last 20
+        // ---- WHS Handicap Index: average of best differentials from last 20
         // (scaled down for fewer rounds), × 0.96, truncated to 1 decimal.
         var differentials = rounds
             .Where(r => r.HandicapDifferential.HasValue && r.Holes.Count >= 9)
@@ -145,19 +148,13 @@ public class RoundsController : ControllerBase
         {
             var useCount = differentials.Count switch
             {
-                <= 5 => differentials.Count - 1 < 1 ? 1 : differentials.Count - 1, // best 1 of 3-5... simplified below
-                _ => 8
-            };
-            // WHS table: 3→1, 4→1, 5→2, 6→2, 7→3, 8→4, 9→5, 10→6, 11-12→7, 13-14→8, 15+→8
-            useCount = differentials.Count switch
-            {
-                3 or 4 => 1,
+                1 or 2 or 3 or 4 => 1,
                 5 or 6 => 2,
-                7 => 3,
-                8 => 4,
-                9 => 5,
-                10 => 6,
-                11 or 12 => 7,
+                7 or 8 => differentials.Count == 7 ? 2 : 3,
+                9 or 10 or 11 => differentials.Count == 9 ? 3 : 4,
+                12 or 13 or 14 => differentials.Count == 12 ? 4 : 5,
+                15 or 16 => 6,
+                17 or 18 => 7,
                 _ => 8
             };
             var avgBest = differentials.Take(useCount).Average();

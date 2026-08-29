@@ -3,27 +3,59 @@ import { apiFetch } from "./client";
 export interface CourseHole {
   holeNumber: number;
   par: number;
+  handicapIndex?: number;
+  yardageBlack?: number | null;
+  yardageBlue?: number | null;
   yardageWhite: number;
-  yardageBlue?: number;
-  yardageRed?: number;
-  notes?: string;
+  yardageGold?: number | null;
+  yardageRed?: number | null;
+  notes?: string | null;
+}
+
+export interface CourseWeather {
+  condition: string;
+  description: string;
+  temperatureC: number;
+  temperatureF: number;
+  feelsLikeC: number;
+  feelsLikeF: number;
+  windSpeedMph: number;
+  windDirection: string;
+  humidity: number;
+  playabilityRating: string;
+  updatedAt: string;
 }
 
 export interface Tenant {
   id: string;
   name: string;
   type: "Course" | "Range";
-  address?: string;
-  description?: string;
-  logoUrl?: string;
-  primaryColor?: string;
-  subdomain?: string;
-  customDomain?: string;
+  address?: string | null;
+  description?: string | null;
+  logoUrl?: string | null;
+  coverImageUrl?: string | null;
+  primaryColor?: string | null;
+  subdomain?: string | null;
+  customDomain?: string | null;
   timezone?: string;
   currency?: string;
   currencySymbol?: string;
   requirePaymentUpfront?: boolean;
   stripeChargesEnabled?: boolean;
+  phone?: string | null;
+  email?: string | null;
+  website?: string | null;
+  architect?: string | null;
+  yearBuilt?: number | null;
+  courseType?: string | null;
+  courseRating?: number | null;
+  slopeRating?: number | null;
+  greensGrass?: string | null;
+  fairwaysGrass?: string | null;
+  amenities?: string | null;
+  dressCode?: string | null;
+  spikePolicy?: string | null;
+  holes?: CourseHole[];
 }
 
 export const courseApi = {
@@ -42,4 +74,23 @@ export const courseApi = {
 
   updateTenant: (id: string, data: Partial<Tenant>, token: string) =>
     apiFetch<void>(`/api/tenants/${id}`, { method: "PUT", body: JSON.stringify(data) }, token, id),
+
+  getWeather: (tenantId: string) => apiFetch<CourseWeather>(`/api/tenants/${tenantId}/weather`),
+
+  uploadCover: async (tenantId: string, file: File, token: string) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    const res = await fetch(`/api/tenants/${tenantId}/cover`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+      body: formData,
+    });
+    if (!res.ok) {
+      const txt = await res.text();
+      throw new Error(txt || "Failed to upload cover banner");
+    }
+    return res.json() as Promise<{ url: string }>;
+  },
 };

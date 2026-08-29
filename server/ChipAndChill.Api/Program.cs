@@ -91,11 +91,30 @@ builder.Services.AddScoped<ChipAndChill.Api.Services.ITenantNotificationService,
 builder.Services.AddScoped<ChipAndChill.Api.Services.IPricingEngine, ChipAndChill.Api.Services.PricingEngine>();
 builder.Services.AddScoped<ChipAndChill.Api.Services.IPaymentService, ChipAndChill.Api.Services.StripePaymentService>();
 
+// ---- Tee Slot Schedule & Automated Generation Services ----
+builder.Services.AddScoped<ChipAndChill.Api.Services.ITeeSlotGeneratorService, ChipAndChill.Api.Services.TeeSlotGeneratorService>();
+builder.Services.AddHostedService<ChipAndChill.Api.Services.TeeSlotAutoGeneratorHostedService>();
+
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
 
 var app = builder.Build();
+
+// Automatically apply any pending EF Core database migrations on startup
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    try
+    {
+        db.Database.Migrate();
+    }
+    catch (Exception ex)
+    {
+        var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+        logger.LogWarning(ex, "Could not automatically apply pending database migrations on startup.");
+    }
+}
 
 if (app.Environment.IsDevelopment())
 {

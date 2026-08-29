@@ -28,11 +28,16 @@ public class OnboardingController : ControllerBase
 {
     private readonly AppDbContext _db;
     private readonly UserManager<ApplicationUser> _userManager;
+    private readonly IConfiguration _config;
 
-    public OnboardingController(AppDbContext db, UserManager<ApplicationUser> userManager)
+    public OnboardingController(
+        AppDbContext db,
+        UserManager<ApplicationUser> userManager,
+        IConfiguration config)
     {
         _db = db;
         _userManager = userManager;
+        _config = config;
     }
 
     // POST /api/onboarding/course — creates a tenant + its holes in one call,
@@ -108,8 +113,7 @@ public class OnboardingController : ControllerBase
         await _db.SaveChangesAsync();
 
         // Issue a fresh 15-minute access token so the client immediately has the tenant_id claim.
-        var config = HttpContext.RequestServices.GetRequiredService<IConfiguration>();
-        var jwtKey = config["Jwt:Key"]!;
+        var jwtKey = _config["Jwt:Key"]!;
         var key = new Microsoft.IdentityModel.Tokens.SymmetricSecurityKey(System.Text.Encoding.UTF8.GetBytes(jwtKey));
         var creds = new Microsoft.IdentityModel.Tokens.SigningCredentials(key, Microsoft.IdentityModel.Tokens.SecurityAlgorithms.HmacSha256);
 
@@ -122,8 +126,8 @@ public class OnboardingController : ControllerBase
         };
 
         var token = new System.IdentityModel.Tokens.Jwt.JwtSecurityToken(
-            issuer: config["Jwt:Issuer"] ?? "ChipAndChill",
-            audience: config["Jwt:Audience"] ?? "ChipAndChillUsers",
+            issuer: _config["Jwt:Issuer"] ?? "ChipAndChill",
+            audience: _config["Jwt:Audience"] ?? "ChipAndChillUsers",
             claims: claims,
             expires: DateTime.UtcNow.AddMinutes(15),
             signingCredentials: creds
