@@ -215,7 +215,7 @@ export default function Profile() {
     : "Recently";
 
   return (
-    <div className="min-h-screen bg-[#F7F9F6] text-gray-900 font-sans flex flex-col">
+    <div className="min-h-screen bg-[#F7F9F6] text-gray-900 font-sans flex flex-col pb-28 md:pb-12">
       <div className="bg-gradient-to-br from-fairway to-turf text-white">
         <NavBar />
       </div>

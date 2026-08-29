@@ -118,7 +118,7 @@ export default function RangeBooking() {
   );
 
   return (
-    <div className="min-h-screen bg-[#FAFBF9]">
+    <div className="min-h-screen bg-[#FAFBF9] pb-28 md:pb-12">
       <div className="bg-gradient-to-br from-fairway to-turf text-white">
         <NavBar />
         <div className="max-w-6xl mx-auto px-6 md:px-14 pb-14 pt-8">

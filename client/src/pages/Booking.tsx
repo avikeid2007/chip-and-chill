@@ -188,7 +188,7 @@ export default function Booking() {
   const totalPrice = (selected?.price ?? 500) * partySize;
 
   return (
-    <div className="min-h-screen bg-[#F7F9F6] text-gray-900 flex flex-col font-sans">
+    <div className="min-h-screen bg-[#F7F9F6] text-gray-900 flex flex-col font-sans pb-28 md:pb-12">
       <div className="bg-gradient-to-br from-fairway to-turf text-white">
         <NavBar />
       </div>
@@ -274,7 +274,7 @@ export default function Booking() {
               </div>
 
               {/* 7-Day Quick Strip */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-2">
+              <div className="flex sm:grid sm:grid-cols-7 gap-2.5 overflow-x-auto pb-2 scrollbar-none">
                 {nextDays.map((day) => {
                   const isSelected = selectedDate === day.iso;
                   return (
@@ -288,15 +288,15 @@ export default function Booking() {
                           return prev;
                         });
                       }}
-                      className={`p-3 rounded-2xl border text-center transition-all ${
+                      className={`min-w-[76px] sm:min-w-0 flex-1 p-3 rounded-2xl border text-center transition-all ${
                         isSelected
                           ? "bg-fairway text-white border-fairway shadow-md scale-[1.02]"
                           : "bg-[#FAFBF9] border-gray-200/80 hover:bg-gray-100/80 text-gray-700"
                       }`}
                     >
-                      <span className="text-[11px] font-bold block uppercase tracking-wider opacity-80">{day.dayName}</span>
-                      <span className="text-xl font-extrabold block my-0.5">{day.dayNumber}</span>
-                      <span className="text-[11px] opacity-75">{day.monthName}</span>
+                      <span className="text-[10px] font-bold block uppercase tracking-wider opacity-80">{day.dayName}</span>
+                      <span className="text-xl font-black block my-0.5">{day.dayNumber}</span>
+                      <span className="text-[10px] opacity-75 uppercase">{day.monthName}</span>
                     </button>
                   );
                 })}

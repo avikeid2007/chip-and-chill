@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../api/AuthContext";
 import Logo from "./Logo";
+import MobileBottomNav from "./MobileBottomNav";
 
 export default function NavBar() {
   const { user, logout } = useAuth();
@@ -438,6 +439,7 @@ export default function NavBar() {
           )}
         </div>
       )}
+      <MobileBottomNav />
     </nav>
   );
 }
