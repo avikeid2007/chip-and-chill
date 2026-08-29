@@ -2,8 +2,8 @@
 
 ## Prerequisites
 
-- **.NET 8 SDK** (`dotnet --version` → 8.x)
-- **Node.js 18+** (`node --version`)
+- **.NET 10 SDK** (`dotnet --version` → 10.x)
+- **Node.js 20+** (`node --version`)
 - **MySQL** — a reachable server (the dev DB is remote at `140.238.253.216`)
 
 ## 1. Database Configuration

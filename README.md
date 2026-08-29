@@ -38,7 +38,7 @@ A modern, multi-tenant golf course management platform with real-time booking, s
 | Layer | Technology |
 |-------|-----------|
 | **Frontend** | React 19, TypeScript, Vite, Tailwind CSS v4, React Router v7 |
-| **Backend** | ASP.NET Core 8, Entity Framework Core, ASP.NET Identity |
+| **Backend** | ASP.NET Core 10, Entity Framework Core, ASP.NET Identity |
 | **Database** | MySQL 8 (production-ready) or SQL Server (local dev) |
 | **Authentication** | JWT tokens with role-based access control |
 | **API Docs** | Swagger/OpenAPI (Swashbuckle) |
@@ -49,8 +49,8 @@ A modern, multi-tenant golf course management platform with real-time booking, s
 ## 🚀 Quick Start
 
 ### Prerequisites
-- [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0)
-- [Node.js 18+](https://nodejs.org/)
+- [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0)
+- [Node.js 20+](https://nodejs.org/)
 - MySQL 8+ (or SQL Server)
 
 ### 1. Clone the Repository

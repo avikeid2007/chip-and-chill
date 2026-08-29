@@ -26,11 +26,11 @@ jobs:
           npm ci
           npm run build
 
-      # 2. Build .NET 8 API (Server)
+      # 2. Build .NET 10 API (Server)
       - name: Setup .NET SDK
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: 8.0.x
+          dotnet-version: 10.0.x
 
       - name: Publish ASP.NET Core Web API
         run: dotnet publish server/ChipAndChill.Api/ChipAndChill.Api.csproj -c Release -o out-api
