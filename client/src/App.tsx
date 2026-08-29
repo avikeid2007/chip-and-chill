@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "./api/AuthContext";
+import PwaInstallPrompt from "./components/PwaInstallPrompt";
 
 import Landing from "./pages/Landing";
 import CourseBrowse from "./pages/CourseBrowse";
@@ -56,6 +57,7 @@ function RequireSuperAdmin({ children }: { children: React.ReactNode }) {
 export default function App() {
   return (
     <AuthProvider>
+      <PwaInstallPrompt />
       <BrowserRouter>
         <Routes>
           {/* Public */}

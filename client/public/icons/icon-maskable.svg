@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <rect width="512" height="512" fill="#0B3024"/>
+  <defs>
+    <linearGradient id="flagGradMask" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stopColor="#E9C46A" />
+      <stop offset="100%" stopColor="#D4A017" />
+    </linearGradient>
+  </defs>
+  <!-- Putting Green Curve (Centered within safe area) -->
+  <path d="M110 380 Q 220 180, 350 240" stroke="#C9A876" stroke-width="22" stroke-linecap="round" fill="none" opacity="0.65"/>
+  <!-- Gold Flag / Ball -->
+  <circle cx="370" cy="220" r="65" fill="url(#flagGradMask)"/>
+  <!-- Flag Pin Accent -->
+  <line x1="370" y1="220" x2="370" y2="350" stroke="#FFFFFF" stroke-width="8" stroke-linecap="round" opacity="0.9"/>
+  <!-- Small Golf Ball -->
+  <circle cx="370" cy="355" r="14" fill="#FFFFFF"/>
+</svg>
