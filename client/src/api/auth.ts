@@ -9,7 +9,7 @@ export interface AuthResponse {
   tenantId: string | null;
 }
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000";
+import { API_BASE } from "./client";
 
 async function handle<T>(res: Response): Promise<T> {
   if (!res.ok) {

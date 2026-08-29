@@ -61,16 +61,41 @@ builder.Services
 
 builder.Services.AddAuthorization();
 
-// ---- CORS (allows the Vite dev server / hosted frontend to call the API with credentials/cookies) ----
-var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? new[] { "http://localhost:5173", "http://localhost:5174" };
+// ---- CORS (allows Vite dev server and production host domains to call API with credentials/cookies) ----
+var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? new[]
+{
+    "http://localhost:5173",
+    "http://localhost:5174",
+    "https://chipandchill.in",
+    "https://www.chipandchill.in",
+    "http://chipandchill.in",
+    "http://www.chipandchill.in"
+};
+
 builder.Services.AddCors(options =>
 {
     options.AddDefaultPolicy(policy =>
     {
-        policy.WithOrigins(allowedOrigins)
-              .AllowAnyHeader()
-              .AllowAnyMethod()
-              .AllowCredentials();
+        policy.SetIsOriginAllowed(origin =>
+        {
+            if (string.IsNullOrWhiteSpace(origin)) return false;
+            try
+            {
+                var uri = new Uri(origin);
+                return uri.Host == "localhost"
+                    || uri.Host == "127.0.0.1"
+                    || uri.Host == "chipandchill.in"
+                    || uri.Host.EndsWith(".chipandchill.in")
+                    || allowedOrigins.Contains(origin);
+            }
+            catch
+            {
+                return false;
+            }
+        })
+        .AllowAnyHeader()
+        .AllowAnyMethod()
+        .AllowCredentials();
     });
 });
 
@@ -96,7 +121,40 @@ builder.Services.AddScoped<ChipAndChill.Api.Services.ITeeSlotGeneratorService, C
 builder.Services.AddHostedService<ChipAndChill.Api.Services.TeeSlotAutoGeneratorHostedService>();
 
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+builder.Services.AddSwaggerGen(options =>
+{
+    options.SwaggerDoc("v1", new Microsoft.OpenApi.Models.OpenApiInfo
+    {
+        Title = "Chip & Chill Golf Platform API",
+        Version = "v1",
+        Description = "Multi-Tenant Golf Course & Driving Range Management Platform API"
+    });
+
+    options.AddSecurityDefinition("Bearer", new Microsoft.OpenApi.Models.OpenApiSecurityScheme
+    {
+        Name = "Authorization",
+        Type = Microsoft.OpenApi.Models.SecuritySchemeType.ApiKey,
+        Scheme = "Bearer",
+        BearerFormat = "JWT",
+        In = Microsoft.OpenApi.Models.ParameterLocation.Header,
+        Description = "Enter 'Bearer' [space] and then your valid JWT token.\r\n\r\nExample: \"Bearer eyJhbGciOi...\""
+    });
+
+    options.AddSecurityRequirement(new Microsoft.OpenApi.Models.OpenApiSecurityRequirement
+    {
+        {
+            new Microsoft.OpenApi.Models.OpenApiSecurityScheme
+            {
+                Reference = new Microsoft.OpenApi.Models.OpenApiReference
+                {
+                    Type = Microsoft.OpenApi.Models.ReferenceType.SecurityScheme,
+                    Id = "Bearer"
+                }
+            },
+            Array.Empty<string>()
+        }
+    });
+});
 
 
 var app = builder.Build();
@@ -116,15 +174,19 @@ using (var scope = app.Services.CreateScope())
     }
 }
 
-if (app.Environment.IsDevelopment())
+// Enable Swagger in all environments (Development & Production)
+app.UseSwagger();
+app.UseSwaggerUI(c =>
 {
-    app.UseSwagger();
-    app.UseSwaggerUI();
-}
+    c.SwaggerEndpoint("/swagger/v1/swagger.json", "Chip & Chill API v1");
+    c.RoutePrefix = "swagger";
+});
+
+// CORS MUST be first before HTTPS redirection and static files to ensure preflights succeed
+app.UseCors();
 
 app.UseHttpsRedirection();
 app.UseStaticFiles(); // serves uploaded logos from wwwroot/uploads
-app.UseCors();
 app.UseAuthentication();
 
 // Resolves the current tenant (header or subdomain) before authorization/

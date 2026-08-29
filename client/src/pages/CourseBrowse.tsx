@@ -2,8 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import NavBar from "../components/NavBar";
 import { courseApi, type Tenant } from "../api/course";
-
-const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000";
+import { API_BASE } from "../api/client";
 
 export default function CourseBrowse() {
   const [courses, setCourses] = useState<Tenant[]>([]);

@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import NavBar from "../components/NavBar";
 import { useAuth } from "../api/AuthContext";
 import type { AuthResponse } from "../api/auth";
-import { apiFetch } from "../api/client";
+import { apiFetch, API_BASE } from "../api/client";
 import { SUPPORTED_CURRENCIES, DEFAULT_CURRENCY, DEFAULT_CURRENCY_SYMBOL } from "../utils/currency";
 
 interface HoleSeed {
@@ -11,8 +11,6 @@ interface HoleSeed {
   par: number;
   yardageWhite: number;
 }
-
-const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000";
 
 function defaultHoles(count: number): HoleSeed[] {
   return Array.from({ length: count }, (_, i) => ({
