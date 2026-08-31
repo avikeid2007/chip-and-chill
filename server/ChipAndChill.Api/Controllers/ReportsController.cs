@@ -557,8 +557,8 @@ public class ReportsController : ControllerBase
 
         // Handicap distribution across active members & golfers
         var allGolfers = members
-            .Concat(rounds.Select(r => r.User).Where(u => u != null)!)
-            .Concat(bookings.Select(b => b.User).Where(u => u != null)!)
+            .Concat(rounds.Where(r => r.User != null).Select(r => r.User!))
+            .Concat(bookings.Where(b => b.User != null).Select(b => b.User!))
             .Where(u => u != null)
             .GroupBy(u => u.Id)
             .Select(g => g.First())
