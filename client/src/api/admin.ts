@@ -67,6 +67,17 @@ export const adminApi = {
       tenantId
     ),
 
+  collectPayment: (tenantId: string, bookingId: string, token: string, amount?: number) =>
+    apiFetch<{ id: string; paymentStatus: "Paid"; amountPaid: number }>(
+      `/api/tenants/${tenantId}/bookings/${bookingId}/collect-payment`,
+      {
+        method: "POST",
+        body: JSON.stringify({ amount: amount !== undefined ? amount : null }),
+      },
+      token,
+      tenantId
+    ),
+
   setSlotBlocked: (tenantId: string, slotId: string, isBlocked: boolean, token: string) =>
     apiFetch<void>(
       `/api/tenants/${tenantId}/tee-slots/${slotId}`,

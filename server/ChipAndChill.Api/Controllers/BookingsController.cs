@@ -546,6 +546,36 @@ public class BookingsController : ControllerBase
         return Ok(new CheckInResponse(booking.Id, booking.Status));
     }
 
+    // POST /api/tenants/{tenantId}/bookings/{bookingId}/collect-payment
+    [HttpPost("bookings/{bookingId:guid}/collect-payment")]
+    [Authorize(Roles = "CourseAdmin,Staff,SuperAdmin")]
+    [TenantScoped]
+    public async Task<ActionResult<CollectPaymentResponse>> CollectPayment(
+        Guid tenantId,
+        Guid bookingId,
+        [FromBody] CollectPaymentRequest? req = null)
+    {
+        var booking = await _db.Bookings.IgnoreQueryFilters()
+            .Include(b => b.TeeSlot)
+            .FirstOrDefaultAsync(b => b.Id == bookingId && b.TenantId == tenantId);
+        if (booking == null) return NotFound("Booking not found.");
+
+        if (booking.Status == BookingStatus.Cancelled)
+            return BadRequest("Cannot collect payment for a cancelled booking.");
+
+        decimal amount = req?.Amount ?? (booking.TeeSlot != null ? booking.TeeSlot.Price * booking.PartySize : booking.AmountPaid);
+        if (amount <= 0 && booking.TeeSlot != null)
+        {
+            amount = booking.TeeSlot.Price * booking.PartySize;
+        }
+
+        booking.PaymentStatus = PaymentStatus.Paid;
+        booking.AmountPaid = amount;
+        await _db.SaveChangesAsync();
+
+        return Ok(new CollectPaymentResponse(booking.Id, booking.PaymentStatus.ToString(), booking.AmountPaid));
+    }
+
     // PATCH /api/tenants/{tenantId}/tee-slots/{slotId} — block/unblock a slot.
     [HttpPatch("tee-slots/{slotId:guid}")]
     [Authorize(Roles = "CourseAdmin,Staff,SuperAdmin")]

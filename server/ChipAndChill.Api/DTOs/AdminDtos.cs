@@ -79,6 +79,8 @@ public record StaffMemberResponse(Guid Id, string Email, string FirstName, strin
 // ---- Admin bookings ----
 public record AdminBookingResponse(Guid Id, Guid TeeSlotId, DateTime StartTime, string UserEmail, string UserName, int PartySize, BookingStatus Status, decimal Price, PaymentStatus PaymentStatus, decimal AmountPaid);
 public record CheckInResponse(Guid Id, BookingStatus Status);
+public record CollectPaymentRequest(decimal? Amount = null);
+public record CollectPaymentResponse(Guid Id, string PaymentStatus, decimal AmountPaid);
 
 
 // ---- Slot blocking ----

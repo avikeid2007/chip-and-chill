@@ -23,6 +23,14 @@ export default function BookingsManagement() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<(typeof filterTabs)[number]["key"]>("all");
   const [error, setError] = useState<string | null>(null);
+  const [successMsg, setSuccessMsg] = useState<string | null>(null);
+
+  // Collect Payment Modal state
+  const [selectedBooking, setSelectedBooking] = useState<AdminBooking | null>(null);
+  const [paymentAmount, setPaymentAmount] = useState<number>(0);
+  const [paymentMethod, setPaymentMethod] = useState<string>("Cash");
+  const [alsoCheckIn, setAlsoCheckIn] = useState<boolean>(true);
+  const [collectingPayment, setCollectingPayment] = useState<boolean>(false);
 
   useEffect(() => {
     if (!user?.tenantId) return;
@@ -47,8 +55,65 @@ export default function BookingsManagement() {
     try {
       await adminApi.checkIn(user.tenantId, id, user.token);
       setBookings((prev) => prev.map((b) => (b.id === id ? { ...b, status: "CheckedIn" } : b)));
+      setSuccessMsg("Golfer checked in successfully.");
+      setTimeout(() => setSuccessMsg(null), 4000);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to check in.");
+    }
+  }
+
+  function openCollectPaymentModal(b: AdminBooking) {
+    setSelectedBooking(b);
+    const defaultAmount = b.amountPaid > 0 ? b.amountPaid : b.price * b.partySize;
+    setPaymentAmount(defaultAmount);
+    setPaymentMethod("Cash");
+    setAlsoCheckIn(b.status !== "CheckedIn");
+  }
+
+  async function handleConfirmCollectPayment(e: React.FormEvent) {
+    e.preventDefault();
+    if (!user?.tenantId || !selectedBooking) return;
+
+    setCollectingPayment(true);
+    setError(null);
+    try {
+      const res = await adminApi.collectPayment(
+        user.tenantId,
+        selectedBooking.id,
+        user.token,
+        paymentAmount
+      );
+
+      let updatedStatus = selectedBooking.status;
+      if (alsoCheckIn && selectedBooking.status !== "CheckedIn") {
+        await adminApi.checkIn(user.tenantId, selectedBooking.id, user.token);
+        updatedStatus = "CheckedIn";
+      }
+
+      setBookings((prev) =>
+        prev.map((b) =>
+          b.id === selectedBooking.id
+            ? {
+                ...b,
+                paymentStatus: "Paid",
+                amountPaid: res.amountPaid,
+                status: updatedStatus,
+              }
+            : b
+        )
+      );
+
+      setSuccessMsg(
+        `Payment of ${currencySymbol}${paymentAmount.toLocaleString()} recorded via ${paymentMethod}${
+          alsoCheckIn && selectedBooking.status !== "CheckedIn" ? " and golfer checked in" : ""
+        }.`
+      );
+      setTimeout(() => setSuccessMsg(null), 5000);
+      setSelectedBooking(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to record payment.");
+    } finally {
+      setCollectingPayment(false);
     }
   }
 
@@ -61,6 +126,8 @@ export default function BookingsManagement() {
       setBookings((prev) =>
         prev.map((b) => (b.id === id ? { ...b, paymentStatus: "Refunded" } : b))
       );
+      setSuccessMsg("Refund processed successfully.");
+      setTimeout(() => setSuccessMsg(null), 4000);
     } catch (err: any) {
       alert(err?.message || "Failed to process refund.");
     }
@@ -88,16 +155,34 @@ export default function BookingsManagement() {
         <div>
           <div className="eyebrow mb-0">Course admin</div>
           <h1 className="text-3xl font-semibold tracking-tight text-fairway">Bookings Management</h1>
+          <p className="text-sm text-ink-soft mt-1">
+            Check-in arrivals, collect clubhouse payments, and manage tee time reservations.
+          </p>
         </div>
         <input
           type="date"
           value={date}
           onChange={(e) => setDate(e.target.value)}
-          className="border border-line rounded-md px-3 py-2 text-sm bg-white font-mono"
+          className="border border-line rounded-xl px-3 py-2 text-sm bg-white font-mono shadow-sm focus:outline-none focus:ring-2 focus:ring-fairway/20"
         />
       </div>
 
-      {error && <p className="text-sm text-red-600 mb-4">{error}</p>}
+      {error && (
+        <div className="p-4 mb-4 rounded-xl bg-red-50 border border-red-200 text-red-700 text-sm flex items-center justify-between">
+          <span>{error}</span>
+          <button onClick={() => setError(null)} className="text-xs text-red-500 hover:text-red-700 font-bold ml-2">✕</button>
+        </div>
+      )}
+
+      {successMsg && (
+        <div className="p-4 mb-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-sm flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span>✅</span>
+            <span>{successMsg}</span>
+          </div>
+          <button onClick={() => setSuccessMsg(null)} className="text-xs text-emerald-600 hover:text-emerald-800 font-bold ml-2">✕</button>
+        </div>
+      )}
 
       <div className="flex items-center justify-between gap-4 mb-6 flex-wrap">
         <div className="flex gap-1.5">
@@ -122,14 +207,14 @@ export default function BookingsManagement() {
         />
       </div>
 
-      <div className="card overflow-hidden">
-        <div className="grid grid-cols-[70px_1fr_80px_110px_110px_140px] text-mono text-xs uppercase tracking-wide text-ink-soft bg-[#FAFBF9] border-b border-[#EEF1ED] px-5 py-2.5">
+      <div className="card overflow-hidden shadow-sm">
+        <div className="grid grid-cols-[75px_1fr_75px_110px_130px_180px] text-mono text-xs uppercase tracking-wide text-ink-soft bg-[#FAFBF9] border-b border-[#EEF1ED] px-5 py-2.5">
           <span>Time</span>
           <span>Golfer</span>
           <span>Players</span>
           <span>Status</span>
           <span>Payment</span>
-          <span>Actions</span>
+          <span className="text-right">Actions</span>
         </div>
         {loading ? (
           <div className="px-5 py-6 space-y-3">
@@ -138,66 +223,209 @@ export default function BookingsManagement() {
             ))}
           </div>
         ) : filtered.length === 0 ? (
-          <div className="px-5 py-10 text-center">
-            <div className="text-2xl mb-2">📭</div>
-            <p className="text-sm text-ink-soft">No bookings found for this date.</p>
+          <div className="px-5 py-12 text-center">
+            <div className="text-3xl mb-2">📭</div>
+            <p className="text-sm font-medium text-fairway">No bookings found for this date.</p>
+            <p className="text-xs text-ink-soft mt-1">Try switching dates or clearing the search filter.</p>
           </div>
         ) : (
-          filtered.map((b) => (
-            <div
-              key={b.id}
-              className="grid grid-cols-[70px_1fr_80px_110px_110px_140px] items-center px-5 py-3 border-b border-[#EEF1ED] last:border-b-0 text-sm row-hover"
-            >
-              <span className="text-mono font-medium">{formatTime(b.startTime)}</span>
-              <div className="min-w-0 pr-2">
-                <p className="font-medium text-fairway truncate">{b.userName || "Golfer"}</p>
-                <p className="text-xs text-ink-soft truncate font-mono">{b.userEmail}</p>
-              </div>
-              <span className="text-ink-soft text-xs">{b.partySize}</span>
-              <span
-                className={`pill w-fit ${
-                  b.status === "CheckedIn" ? "pill-green" : b.status === "Cancelled" ? "pill-red" : "pill-gray"
-                }`}
+          filtered.map((b) => {
+            const calculatedTotal = b.amountPaid > 0 ? b.amountPaid : b.price * b.partySize;
+            return (
+              <div
+                key={b.id}
+                className="grid grid-cols-[75px_1fr_75px_110px_130px_180px] items-center px-5 py-3.5 border-b border-[#EEF1ED] last:border-b-0 text-sm row-hover"
               >
-                {b.status}
-              </span>
-              <div>
-                {b.paymentStatus === "Paid" ? (
-                  <span className="text-[11px] font-semibold text-green-800 bg-green-100 px-2 py-0.5 rounded-full">
-                    Paid ({currencySymbol}{(b.amountPaid || (b.price * b.partySize)).toFixed(0)})
-                  </span>
-                ) : b.paymentStatus === "Refunded" ? (
-                  <span className="text-[11px] font-semibold text-amber-800 bg-amber-100 px-2 py-0.5 rounded-full">
-                    Refunded
-                  </span>
-                ) : (
-                  <span className="text-[11px] font-medium text-fairway/60 bg-sand px-2 py-0.5 rounded-full">
-                    Unpaid
-                  </span>
-                )}
-              </div>
-              <div className="flex items-center gap-2 text-xs font-medium">
-                {b.status !== "CheckedIn" && b.status !== "Cancelled" && (
-                  <button
-                    onClick={() => checkIn(b.id)}
-                    className="text-turf hover:underline font-semibold"
+                <span className="text-mono font-semibold text-fairway">{formatTime(b.startTime)}</span>
+                <div className="min-w-0 pr-2">
+                  <p className="font-medium text-fairway truncate">{b.userName || "Golfer"}</p>
+                  <p className="text-xs text-ink-soft truncate font-mono">{b.userEmail}</p>
+                </div>
+                <span className="text-ink-soft text-xs font-mono">{b.partySize} {b.partySize === 1 ? "player" : "players"}</span>
+                <div>
+                  <span
+                    className={`pill w-fit ${
+                      b.status === "CheckedIn" ? "pill-green" : b.status === "Cancelled" ? "pill-red" : "pill-gray"
+                    }`}
                   >
-                    Check in
-                  </button>
-                )}
-                {b.paymentStatus === "Paid" && (
-                  <button
-                    onClick={() => refundBooking(b.id, b.amountPaid || (b.price * b.partySize))}
-                    className="text-[#C0533F] hover:underline"
-                  >
-                    Refund
-                  </button>
-                )}
+                    {b.status === "CheckedIn" ? "Checked In" : b.status}
+                  </span>
+                </div>
+                <div>
+                  {b.paymentStatus === "Paid" ? (
+                    <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-800 bg-emerald-100/80 border border-emerald-200 px-2.5 py-0.5 rounded-full">
+                      ✓ Paid ({currencySymbol}{calculatedTotal.toFixed(0)})
+                    </span>
+                  ) : b.paymentStatus === "Refunded" ? (
+                    <span className="inline-flex items-center text-[11px] font-semibold text-amber-800 bg-amber-100 border border-amber-200 px-2 py-0.5 rounded-full">
+                      Refunded
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-900 bg-amber-50 border border-amber-200 px-2.5 py-0.5 rounded-full">
+                      ⏳ Unpaid ({currencySymbol}{calculatedTotal.toFixed(0)})
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center justify-end gap-2 text-xs font-medium">
+                  {/* Collect Payment Button (for Unpaid) */}
+                  {b.paymentStatus === "Unpaid" && b.status !== "Cancelled" && (
+                    <button
+                      onClick={() => openCollectPaymentModal(b)}
+                      className="px-2.5 py-1 rounded-lg bg-emerald-600 text-white font-semibold hover:bg-emerald-700 transition-colors shadow-xs flex items-center gap-1"
+                      title="Collect payment at clubhouse / counter"
+                    >
+                      <span>💳</span> Collect
+                    </button>
+                  )}
+
+                  {/* Check In Button */}
+                  {b.status !== "CheckedIn" && b.status !== "Cancelled" && (
+                    <button
+                      onClick={() => checkIn(b.id)}
+                      className="px-2.5 py-1 rounded-lg border border-fairway/30 text-fairway font-semibold hover:bg-fairway/5 transition-colors"
+                    >
+                      Check in
+                    </button>
+                  )}
+
+                  {/* Refund Button */}
+                  {b.paymentStatus === "Paid" && (
+                    <button
+                      onClick={() => refundBooking(b.id, calculatedTotal)}
+                      className="text-[#C0533F] hover:underline"
+                    >
+                      Refund
+                    </button>
+                  )}
+                </div>
               </div>
-            </div>
-          ))
+            );
+          })
         )}
       </div>
+
+      {/* ── Collect Payment Modal ─────────────────────────────────────── */}
+      {selectedBooking && (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-line animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-start justify-between mb-4">
+              <div>
+                <span className="text-xs font-mono uppercase tracking-widest text-emerald-700 font-bold">
+                  Clubhouse Payment Desk
+                </span>
+                <h3 className="text-xl font-bold text-fairway mt-0.5">Collect Tee Time Payment</h3>
+              </div>
+              <button
+                onClick={() => setSelectedBooking(null)}
+                className="text-gray-400 hover:text-gray-600 text-lg leading-none p-1"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Booking Summary Box */}
+            <div className="bg-[#FAFBF9] rounded-2xl p-4 border border-[#EEF1ED] space-y-2 mb-5 text-sm">
+              <div className="flex justify-between">
+                <span className="text-ink-soft">Golfer:</span>
+                <span className="font-semibold text-fairway">{selectedBooking.userName || "Golfer"}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-ink-soft">Tee Time:</span>
+                <span className="font-mono font-medium text-fairway">{formatTime(selectedBooking.startTime)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-ink-soft">Party Size:</span>
+                <span className="font-mono text-fairway">{selectedBooking.partySize} {selectedBooking.partySize === 1 ? "player" : "players"}</span>
+              </div>
+              <div className="flex justify-between pt-2 border-t border-[#EEF1ED]">
+                <span className="text-ink-soft font-medium">Standard Rate:</span>
+                <span className="font-mono font-bold text-fairway">
+                  {selectedBooking.partySize} × {currencySymbol}{selectedBooking.price} = {currencySymbol}{(selectedBooking.price * selectedBooking.partySize).toLocaleString()}
+                </span>
+              </div>
+            </div>
+
+            <form onSubmit={handleConfirmCollectPayment} className="space-y-4">
+              {/* Payment Amount Input */}
+              <div>
+                <label className="label text-xs">Amount to Collect ({currencySymbol})</label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-fairway font-bold text-base">
+                    {currencySymbol}
+                  </span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="any"
+                    required
+                    value={paymentAmount}
+                    onChange={(e) => setPaymentAmount(parseFloat(e.target.value) || 0)}
+                    className="input pl-8 font-mono text-base font-semibold"
+                  />
+                </div>
+              </div>
+
+              {/* Payment Method Selector */}
+              <div>
+                <label className="label text-xs">Payment Method</label>
+                <div className="grid grid-cols-2 gap-2">
+                  {["Cash", "Card / POS Terminal", "UPI / QR Code", "Clubhouse Account"].map((method) => (
+                    <button
+                      key={method}
+                      type="button"
+                      onClick={() => setPaymentMethod(method)}
+                      className={`px-3 py-2 rounded-xl text-xs font-semibold border transition-all text-left flex items-center justify-between ${
+                        paymentMethod === method
+                          ? "bg-emerald-50 border-emerald-600 text-emerald-800"
+                          : "border-line bg-white text-fairway hover:bg-[#F8FAF7]"
+                      }`}
+                    >
+                      <span>{method}</span>
+                      {paymentMethod === method && <span>✓</span>}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Check-in Checkbox */}
+              {selectedBooking.status !== "CheckedIn" && (
+                <label className="flex items-center gap-2.5 p-3 rounded-xl bg-fairway/5 border border-fairway/10 cursor-pointer text-xs font-medium text-fairway">
+                  <input
+                    type="checkbox"
+                    checked={alsoCheckIn}
+                    onChange={(e) => setAlsoCheckIn(e.target.checked)}
+                    className="rounded border-gray-300 text-fairway focus:ring-fairway h-4 w-4"
+                  />
+                  <span>Also mark golfer as <strong>Checked In</strong></span>
+                </label>
+              )}
+
+              {/* Submit Buttons */}
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setSelectedBooking(null)}
+                  className="flex-1 py-2.5 px-4 rounded-xl border border-line text-sm font-semibold text-ink-soft hover:bg-[#F8FAF7]"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={collectingPayment || paymentAmount <= 0}
+                  className="flex-1 py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold shadow-sm transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {collectingPayment ? (
+                    <span>Processing...</span>
+                  ) : (
+                    <span>Confirm &amp; Mark Paid</span>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </AdminLayout>
   );
 }
+

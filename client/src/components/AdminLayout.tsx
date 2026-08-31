@@ -13,6 +13,7 @@ const ALL_LINKS = [
   { to: "/dashboard/range",         label: "Range Bays",       icon: "🎯", ownerOnly: false },
   { to: "/dashboard/golfers",       label: "Golfers & Members",icon: "🏌️", ownerOnly: false },
   // ── Owner-only section ────────────────────────────────────────────
+  { to: "/dashboard/reports",      label: "Reports",          icon: "📊", ownerOnly: true  },
   { to: "/dashboard/course",        label: "Course Info",      icon: "🗺️", ownerOnly: true  },
   { to: "/dashboard/pricing",       label: "Pricing Rules",    icon: "🏷️", ownerOnly: true  },
   { to: "/dashboard/branding",      label: "Branding & Domain",icon: "🎨", ownerOnly: true  },

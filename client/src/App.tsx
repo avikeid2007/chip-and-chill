@@ -28,6 +28,7 @@ import BrandingSettings from "./pages/BrandingSettings";
 import PayoutSettings from "./pages/PayoutSettings";
 import StaffAccounts from "./pages/StaffAccounts";
 import CreateCourse from "./pages/CreateCourse";
+import RevenueReport from "./pages/RevenueReport";
 
 import Tournaments from "./pages/Tournaments";
 import TournamentDetail from "./pages/TournamentDetail";
@@ -144,6 +145,7 @@ export default function App() {
           <Route path="/dashboard/golfers" element={<RequireCourseAdmin><GolferDirectory /></RequireCourseAdmin>} />
           <Route path="/dashboard/pricing" element={<RequireCourseAdmin><PricingRules /></RequireCourseAdmin>} />
           <Route path="/dashboard/bookings" element={<RequireCourseAdmin><BookingsManagement /></RequireCourseAdmin>} />
+          <Route path="/dashboard/reports" element={<RequireOwner><RevenueReport /></RequireOwner>} />
           <Route path="/dashboard/course" element={<RequireOwner><CourseEditor /></RequireOwner>} />
           <Route path="/dashboard/branding" element={<RequireOwner><BrandingSettings /></RequireOwner>} />
           <Route path="/dashboard/notifications" element={<RequireOwner><NotificationSettings /></RequireOwner>} />
