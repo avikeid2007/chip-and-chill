@@ -10,6 +10,7 @@ import {
   type RangeTournamentsReport,
 } from "../api/reports";
 import { courseApi } from "../api/course";
+import { exportToCsv } from "../utils/export";
 import NoCourse from "../components/NoCourse";
 
 // ── Period & Tab options ──────────────────────────────────────────────────────
@@ -321,6 +322,46 @@ export default function RevenueReportPage() {
     }
   }, [user, tab, period]);
 
+  function handleExportCsv() {
+    const periodStr = periodLabel(period).replace(/\s+/g, "_");
+    if (tab === "revenue" && revReport) {
+      const headers = ["Date", `Tee Revenue (${cs})`, `Range Revenue (${cs})`, `Total Revenue (${cs})`];
+      const rows = revReport.daily.map((d) => [d.date, d.tee, d.range, d.tee + d.range]);
+      exportToCsv(`Revenue_Report_${periodStr}`, headers, rows);
+    } else if (tab === "teeSheet" && teeReport) {
+      const headers = ["Day of Week", "Total Slots", "Booked Slots", "Total Golfers", "Occupancy %", `Revenue (${cs})`];
+      const rows = teeReport.daysOfWeek.map((d) => [d.day, d.totalSlots, d.bookedSlots, d.totalGolfers, `${d.occupancyPercent}%`, d.revenue]);
+      exportToCsv(`Tee_Sheet_Occupancy_${periodStr}`, headers, rows);
+    } else if (tab === "golfers" && golfersReport) {
+      const headers = ["Rank", "Golfer Name", "Email", "Handicap", "Rounds Played", "Bookings", "Best Score", `Total Spend (${cs})`];
+      const rows = golfersReport.topGolfers.map((g, i) => [
+        i + 1,
+        g.name,
+        g.email,
+        g.handicapIndex !== null && g.handicapIndex !== undefined ? g.handicapIndex : "Unranked",
+        g.roundsPlayed,
+        g.bookingsCount,
+        g.bestRoundScore ?? "—",
+        g.totalSpend
+      ]);
+      exportToCsv(`Golfer_Leaderboard_${periodStr}`, headers, rows);
+    } else if (tab === "rangeTournaments" && rangeTournamentsReport) {
+      const headers = ["Bay #", "Bay Name", "Type", "Launch Monitor", `Hourly Rate (${cs})`, "Sessions", "Total Hours", "Utilization %", `Revenue (${cs})`];
+      const rows = rangeTournamentsReport.bays.map((b) => [
+        b.bayNumber,
+        b.bayName,
+        b.isOutdoor ? "Outdoor" : "Indoor",
+        b.hasLaunchMonitor ? "Yes (TrackMan)" : "No",
+        b.hourlyRate,
+        b.sessionsCount,
+        b.totalHours,
+        `${b.utilizationPercent}%`,
+        b.totalRevenue
+      ]);
+      exportToCsv(`Range_Bay_Performance_${periodStr}`, headers, rows);
+    }
+  }
+
   if (!user?.tenantId) {
     return (
       <AdminLayout>
@@ -343,21 +384,41 @@ export default function RevenueReportPage() {
           </p>
         </div>
 
-        {/* Period switcher */}
-        <div className="flex items-center bg-white border border-[#EEF1ED] rounded-2xl p-1 shadow-xs gap-1 self-start sm:self-auto">
-          {PERIODS.map((p) => (
-            <button
-              key={p}
-              onClick={() => setPeriod(p)}
-              className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
-                period === p
-                  ? "bg-fairway text-white shadow-xs"
-                  : "text-ink-soft hover:text-fairway hover:bg-[#F8FAF7]"
-              }`}
-            >
-              {p === "month" ? "This Month" : `${p}D`}
-            </button>
-          ))}
+        {/* Action Buttons & Period switcher */}
+        <div className="flex items-center gap-2 flex-wrap self-start sm:self-auto no-print">
+          <button
+            onClick={() => window.print()}
+            className="px-3.5 py-2 rounded-xl border border-line bg-white hover:bg-[#F8FAF7] text-fairway text-xs font-semibold shadow-xs flex items-center gap-1.5 transition-all"
+            title="Print or Save Executive Summary as PDF"
+          >
+            <span>🖨️</span>
+            <span>Print PDF</span>
+          </button>
+
+          <button
+            onClick={handleExportCsv}
+            className="px-3.5 py-2 rounded-xl border border-line bg-white hover:bg-[#F8FAF7] text-fairway text-xs font-semibold shadow-xs flex items-center gap-1.5 transition-all"
+            title="Export Active Report to CSV / Excel"
+          >
+            <span>📥</span>
+            <span>Export CSV</span>
+          </button>
+
+          <div className="flex items-center bg-white border border-[#EEF1ED] rounded-2xl p-1 shadow-xs gap-1">
+            {PERIODS.map((p) => (
+              <button
+                key={p}
+                onClick={() => setPeriod(p)}
+                className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
+                  period === p
+                    ? "bg-fairway text-white shadow-xs"
+                    : "text-ink-soft hover:text-fairway hover:bg-[#F8FAF7]"
+                }`}
+              >
+                {p === "month" ? "This Month" : `${p}D`}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 

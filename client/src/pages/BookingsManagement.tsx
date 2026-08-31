@@ -5,6 +5,7 @@ import { adminApi, type AdminBooking } from "../api/admin";
 import { paymentsApi } from "../api/payments";
 import { courseApi } from "../api/course";
 import { formatTime, toDateInput } from "../utils/time";
+import { exportToCsv } from "../utils/export";
 import NoCourse from "../components/NoCourse";
 
 const filterTabs = [
@@ -19,11 +20,15 @@ export default function BookingsManagement() {
   const [date, setDate] = useState(() => toDateInput(new Date()));
   const [bookings, setBookings] = useState<AdminBooking[]>([]);
   const [currencySymbol, setCurrencySymbol] = useState("₹");
+  const [tenantName, setTenantName] = useState("Golf Club");
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<(typeof filterTabs)[number]["key"]>("all");
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+
+  // Starter Sheet Modal state
+  const [showStarterSheet, setShowStarterSheet] = useState(false);
 
   // Collect Payment Modal state
   const [selectedBooking, setSelectedBooking] = useState<AdminBooking | null>(null);
@@ -36,6 +41,7 @@ export default function BookingsManagement() {
     if (!user?.tenantId) return;
     courseApi.getTenant(user.tenantId).then((t) => {
       if (t.currencySymbol) setCurrencySymbol(t.currencySymbol);
+      if (t.name) setTenantName(t.name);
     }).catch(() => {});
     loadBookings();
   }, [user, date]);
@@ -133,6 +139,58 @@ export default function BookingsManagement() {
     }
   }
 
+  function handleExportCsv() {
+    const headers = [
+      "Tee Time",
+      "Golfer Name",
+      "Email",
+      "Party Size",
+      "Green Fee Rate",
+      "Total Price",
+      "Amount Paid",
+      "Payment Status",
+      "Booking Status",
+      "Booking ID"
+    ];
+    const rows = filtered.map((b) => [
+      formatTime(b.startTime),
+      b.userName,
+      b.userEmail,
+      b.partySize,
+      b.price,
+      b.price * b.partySize,
+      b.amountPaid,
+      b.paymentStatus,
+      b.status,
+      b.id
+    ]);
+    exportToCsv(`Tee_Sheet_Bookings_${date}`, headers, rows);
+  }
+
+  function handleExportStarterCsv() {
+    const headers = [
+      "Tee Time",
+      "Golfer Name",
+      "Players",
+      "Status",
+      "Payment",
+      "Cart #",
+      "Caddie",
+      "Starter Signature / Check"
+    ];
+    const rows = filtered.map((b) => [
+      formatTime(b.startTime),
+      b.userName,
+      b.partySize,
+      b.status === "CheckedIn" ? "Checked In" : "Pending",
+      b.paymentStatus === "Paid" ? "Paid" : "Pay at Desk",
+      "",
+      "",
+      ""
+    ]);
+    exportToCsv(`Daily_Starter_Sheet_${date}`, headers, rows);
+  }
+
   const filtered = bookings
     .filter((b) => statusFilter === "all" || b.status === statusFilter)
     .filter(
@@ -159,12 +217,34 @@ export default function BookingsManagement() {
             Check-in arrivals, collect clubhouse payments, and manage tee time reservations.
           </p>
         </div>
-        <input
-          type="date"
-          value={date}
-          onChange={(e) => setDate(e.target.value)}
-          className="border border-line rounded-xl px-3 py-2 text-sm bg-white font-mono shadow-sm focus:outline-none focus:ring-2 focus:ring-fairway/20"
-        />
+        
+        {/* Date Picker & Action Buttons */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <input
+            type="date"
+            value={date}
+            onChange={(e) => setDate(e.target.value)}
+            className="border border-line rounded-xl px-3 py-2 text-sm bg-white font-mono shadow-sm focus:outline-none focus:ring-2 focus:ring-fairway/20"
+          />
+
+          <button
+            onClick={() => setShowStarterSheet(true)}
+            className="px-3.5 py-2 rounded-xl border border-line bg-white hover:bg-[#F8FAF7] text-fairway text-xs font-semibold shadow-xs flex items-center gap-1.5 transition-all"
+            title="Open Starter Sheet for Marshals & Caddie Masters"
+          >
+            <span>🖨️</span>
+            <span>Starter Sheet</span>
+          </button>
+
+          <button
+            onClick={handleExportCsv}
+            className="px-3.5 py-2 rounded-xl bg-fairway hover:bg-fairway/90 text-white text-xs font-semibold shadow-xs flex items-center gap-1.5 transition-all"
+            title="Download CSV for Excel or Google Sheets"
+          >
+            <span>📥</span>
+            <span>Export CSV</span>
+          </button>
+        </div>
       </div>
 
       {error && (
@@ -422,6 +502,170 @@ export default function BookingsManagement() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── Starter Sheet Print & Preview Modal ────────────────────────────── */}
+      {showStarterSheet && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-50 p-4 overflow-y-auto">
+          <div className="bg-white rounded-3xl border border-[#EEF1ED] shadow-2xl max-w-4xl w-full p-6 my-8">
+            {/* Modal Controls (Hidden in Print) */}
+            <div className="flex items-center justify-between pb-4 mb-4 border-b border-[#EEF1ED] no-print">
+              <div className="flex items-center gap-2">
+                <span className="text-xl">🖨️</span>
+                <div>
+                  <h3 className="font-semibold text-fairway text-base">Daily Starter Sheet Preview</h3>
+                  <p className="text-xs text-ink-soft">Official tee time roster for Starter Marshals &amp; Caddie Masters</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleExportStarterCsv}
+                  className="px-3.5 py-1.5 rounded-xl border border-line bg-white hover:bg-[#F8FAF7] text-fairway text-xs font-semibold shadow-xs flex items-center gap-1.5"
+                >
+                  <span>📥</span>
+                  <span>Export CSV</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => window.print()}
+                  className="px-4 py-1.5 rounded-xl bg-fairway hover:bg-fairway/90 text-white text-xs font-semibold shadow-xs flex items-center gap-1.5"
+                >
+                  <span>🖨️</span>
+                  <span>Print Sheet</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowStarterSheet(false)}
+                  className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-700 flex items-center justify-center text-sm font-bold ml-2"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+
+            {/* Printable Document Area */}
+            <div className="p-4 bg-white border border-gray-200 rounded-2xl print:border-0 print:p-0 print:m-0">
+              {/* Document Header */}
+              <div className="flex items-start justify-between border-b-2 border-fairway pb-3 mb-4">
+                <div>
+                  <h2 className="text-xl font-bold text-fairway uppercase tracking-tight">{tenantName}</h2>
+                  <p className="text-xs font-semibold text-ink-soft uppercase tracking-wider">Official Daily Starter &amp; Marshal Sheet</p>
+                </div>
+                <div className="text-right">
+                  <p className="font-mono font-bold text-sm text-fairway">
+                    {new Date(date).toLocaleDateString("en-IN", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}
+                  </p>
+                  <p className="text-[11px] font-mono text-ink-soft">Total Bookings: {filtered.length} | Generated: {new Date().toLocaleTimeString()}</p>
+                </div>
+              </div>
+
+              {/* Marshal Guidance Notes */}
+              <div className="grid grid-cols-3 gap-3 mb-4 p-2.5 bg-gray-50 rounded-xl text-[11px] border border-gray-100">
+                <div>
+                  <span className="font-bold text-fairway">Pace of Play Target:</span> 4 Hours 15 Mins
+                </div>
+                <div>
+                  <span className="font-bold text-fairway">Pin Position:</span> Zone #2 (Center-Right)
+                </div>
+                <div>
+                  <span className="font-bold text-fairway">Cart Rules:</span> 90-Degree Rule in Effect
+                </div>
+              </div>
+
+              {/* Roster Table */}
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead>
+                    <tr className="bg-gray-100 text-[11px] font-mono uppercase tracking-wider text-fairway border-b border-gray-300">
+                      <th className="py-2.5 px-3 border border-gray-300 w-12 text-center">Check</th>
+                      <th className="py-2.5 px-3 border border-gray-300 w-20">Time</th>
+                      <th className="py-2.5 px-3 border border-gray-300">Golfer Name / Lead</th>
+                      <th className="py-2.5 px-3 border border-gray-300 w-16 text-center">Players</th>
+                      <th className="py-2.5 px-3 border border-gray-300 w-24 text-center">Status</th>
+                      <th className="py-2.5 px-3 border border-gray-300 w-24 text-center">Payment</th>
+                      <th className="py-2.5 px-3 border border-gray-300 w-20 text-center">Cart #</th>
+                      <th className="py-2.5 px-3 border border-gray-300 w-24">Caddie</th>
+                      <th className="py-2.5 px-3 border border-gray-300 w-32">Marshal Notes</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filtered.length === 0 ? (
+                      <tr>
+                        <td colSpan={9} className="py-8 text-center text-ink-soft border border-gray-300">
+                          No tee times booked for {date}.
+                        </td>
+                      </tr>
+                    ) : (
+                      filtered.map((b) => (
+                        <tr key={b.id} className="border border-gray-300 hover:bg-gray-50">
+                          <td className="py-2.5 px-3 border border-gray-300 text-center">
+                            <div className="w-4 h-4 border-2 border-gray-400 rounded-xs inline-block" />
+                          </td>
+                          <td className="py-2.5 px-3 border border-gray-300 font-mono font-bold text-fairway">
+                            {formatTime(b.startTime)}
+                          </td>
+                          <td className="py-2.5 px-3 border border-gray-300">
+                            <div className="font-semibold text-fairway">{b.userName}</div>
+                            <div className="text-[10px] text-ink-soft font-mono">{b.userEmail}</div>
+                          </td>
+                          <td className="py-2.5 px-3 border border-gray-300 font-mono font-medium text-center">
+                            {b.partySize}
+                          </td>
+                          <td className="py-2.5 px-3 border border-gray-300 text-center">
+                            <span
+                              className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${
+                                b.status === "CheckedIn"
+                                  ? "bg-emerald-100 text-emerald-800"
+                                  : b.status === "Cancelled"
+                                  ? "bg-red-100 text-red-800"
+                                  : "bg-blue-50 text-blue-800"
+                              }`}
+                            >
+                              {b.status === "CheckedIn" ? "Checked In" : b.status}
+                            </span>
+                          </td>
+                          <td className="py-2.5 px-3 border border-gray-300 text-center font-mono">
+                            <span
+                              className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${
+                                b.paymentStatus === "Paid"
+                                  ? "bg-emerald-50 text-emerald-700"
+                                  : "bg-amber-50 text-amber-700"
+                              }`}
+                            >
+                              {b.paymentStatus === "Paid" ? "Paid" : "Pay at Desk"}
+                            </span>
+                          </td>
+                          <td className="py-2.5 px-3 border border-gray-300 text-center font-mono text-gray-300">
+                            ____
+                          </td>
+                          <td className="py-2.5 px-3 border border-gray-300 text-gray-300">
+                            __________
+                          </td>
+                          <td className="py-2.5 px-3 border border-gray-300 text-gray-300">
+                            _________________
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Starter Sign-Off Box */}
+              <div className="mt-6 pt-4 border-t border-gray-300 flex items-center justify-between text-xs text-ink-soft">
+                <div>
+                  <span className="font-semibold text-fairway">Starter On Duty: </span>
+                  <span className="inline-block border-b border-gray-400 w-48 ml-2" />
+                </div>
+                <div>
+                  <span className="font-semibold text-fairway">Marshal Signature: </span>
+                  <span className="inline-block border-b border-gray-400 w-48 ml-2" />
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       )}

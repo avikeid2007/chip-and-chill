@@ -182,3 +182,52 @@ h1, h2, h3 {
   outline: 2px solid var(--color-gold);
   outline-offset: 2px;
 }
+
+@media print {
+  /* Hide UI elements not meant for print */
+  aside,
+  nav,
+  header,
+  .no-print,
+  button,
+  .btn-primary,
+  .btn-outline,
+  .btn-ghost {
+    display: none !important;
+  }
+
+  body {
+    background: white !important;
+    color: black !important;
+    font-size: 11pt;
+  }
+
+  /* Expand admin content to full page */
+  main, .admin-main, .page-shell {
+    margin: 0 !important;
+    padding: 0 !important;
+    max-width: 100% !important;
+    width: 100% !important;
+  }
+
+  .card, .shadow-xs, .shadow-card, .shadow-lift {
+    box-shadow: none !important;
+    border: 1px solid #ddd !important;
+    break-inside: avoid;
+  }
+
+  table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+  }
+
+  tr {
+    break-inside: avoid;
+  }
+
+  @page {
+    margin: 1.2cm;
+    size: auto;
+  }
+}
+
