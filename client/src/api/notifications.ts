@@ -19,9 +19,16 @@ export interface NotificationSettings {
   twilioAccountSid: string | null;
   hasTwilioAuthToken: boolean;
   twilioFromNumber: string | null;
+  useCustomWhatsApp: boolean;
+  whatsAppProvider: string;
+  whatsAppFromNumber: string | null;
   sendBookingConfirmationEmail: boolean;
   sendBookingConfirmationSms: boolean;
+  sendBookingConfirmationWhatsApp: boolean;
+  sendPaymentReceiptEmail: boolean;
+  sendPaymentReceiptWhatsApp: boolean;
   sendReminder24HoursBefore: boolean;
+  sendReminderWhatsApp: boolean;
   sendCancellationNotice: boolean;
   customEmailFooter: string | null;
   customDressCodePolicy: string | null;
@@ -46,9 +53,16 @@ export interface UpdateNotificationSettingsPayload {
   twilioAccountSid?: string | null;
   twilioAuthToken?: string | null;
   twilioFromNumber?: string | null;
+  useCustomWhatsApp: boolean;
+  whatsAppProvider: string;
+  whatsAppFromNumber?: string | null;
   sendBookingConfirmationEmail: boolean;
   sendBookingConfirmationSms: boolean;
+  sendBookingConfirmationWhatsApp: boolean;
+  sendPaymentReceiptEmail: boolean;
+  sendPaymentReceiptWhatsApp: boolean;
   sendReminder24HoursBefore: boolean;
+  sendReminderWhatsApp: boolean;
   sendCancellationNotice: boolean;
   customEmailFooter?: string | null;
   customDressCodePolicy?: string | null;
@@ -89,6 +103,17 @@ export const notificationsApi = {
   testSms: (tenantId: string, targetPhone: string, token?: string | null) =>
     apiFetch<{ success: boolean; message: string }>(
       `/api/tenants/${tenantId}/notifications/test-sms`,
+      {
+        method: "POST",
+        body: JSON.stringify({ targetPhone }),
+      },
+      token,
+      tenantId
+    ),
+
+  testWhatsApp: (tenantId: string, targetPhone: string, token?: string | null) =>
+    apiFetch<{ success: boolean; message: string }>(
+      `/api/tenants/${tenantId}/notifications/test-whatsapp`,
       {
         method: "POST",
         body: JSON.stringify({ targetPhone }),

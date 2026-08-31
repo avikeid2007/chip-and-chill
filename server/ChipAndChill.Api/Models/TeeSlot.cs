@@ -45,6 +45,7 @@ public class Booking
     public PaymentStatus PaymentStatus { get; set; } = PaymentStatus.Unpaid;
     public string? PaymentIntentId { get; set; }
     public decimal AmountPaid { get; set; } = 0;
+    public DateTime? ReminderSentAt { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }
 

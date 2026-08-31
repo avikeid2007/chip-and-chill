@@ -134,6 +134,7 @@ builder.Services.AddScoped<ChipAndChill.Api.Services.IPaymentService, ChipAndChi
 // ---- Tee Slot Schedule & Automated Generation Services ----
 builder.Services.AddScoped<ChipAndChill.Api.Services.ITeeSlotGeneratorService, ChipAndChill.Api.Services.TeeSlotGeneratorService>();
 builder.Services.AddHostedService<ChipAndChill.Api.Services.TeeSlotAutoGeneratorHostedService>();
+builder.Services.AddHostedService<ChipAndChill.Api.Services.TeeTimeReminderHostedService>();
 
 // ---- Live Satellite Weather Service ----
 builder.Services.AddScoped<ChipAndChill.Api.Services.IWeatherService, ChipAndChill.Api.Services.OpenMeteoWeatherService>();
@@ -191,13 +192,21 @@ using (var scope = app.Services.CreateScope())
         logger.LogWarning(ex, "Could not automatically apply pending database migrations on startup.");
     }
 
-    // Ensure new Tenant fee and holes columns exist in database
+    // Ensure new Tenant fee, reminder, and notification columns exist in database
     string[] alterStatements = new[]
     {
         "ALTER TABLE `Tenants` ADD `GreenFee` decimal(18,2) NULL;",
         "ALTER TABLE `Tenants` ADD `CaddieFee` decimal(18,2) NULL;",
         "ALTER TABLE `Tenants` ADD `CoachFee` decimal(18,2) NULL;",
-        "ALTER TABLE `Tenants` ADD `HolesCount` int NOT NULL DEFAULT 18;"
+        "ALTER TABLE `Tenants` ADD `HolesCount` int NOT NULL DEFAULT 18;",
+        "ALTER TABLE `Bookings` ADD `ReminderSentAt` datetime NULL;",
+        "ALTER TABLE `TenantNotificationSettings` ADD `UseCustomWhatsApp` tinyint(1) NOT NULL DEFAULT 0;",
+        "ALTER TABLE `TenantNotificationSettings` ADD `WhatsAppProvider` varchar(50) NOT NULL DEFAULT 'TwilioWhatsApp';",
+        "ALTER TABLE `TenantNotificationSettings` ADD `WhatsAppFromNumber` varchar(100) NULL;",
+        "ALTER TABLE `TenantNotificationSettings` ADD `SendBookingConfirmationWhatsApp` tinyint(1) NOT NULL DEFAULT 0;",
+        "ALTER TABLE `TenantNotificationSettings` ADD `SendPaymentReceiptEmail` tinyint(1) NOT NULL DEFAULT 1;",
+        "ALTER TABLE `TenantNotificationSettings` ADD `SendPaymentReceiptWhatsApp` tinyint(1) NOT NULL DEFAULT 0;",
+        "ALTER TABLE `TenantNotificationSettings` ADD `SendReminderWhatsApp` tinyint(1) NOT NULL DEFAULT 0;"
     };
     foreach (var sql in alterStatements)
     {

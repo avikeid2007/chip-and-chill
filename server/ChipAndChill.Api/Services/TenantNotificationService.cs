@@ -18,9 +18,11 @@ public interface ITenantNotificationService
     Task SendWaitlistPromotionAsync(Guid tenantId, ApplicationUser user, TeeSlot slot);
     Task SendPaymentReceiptAsync(Guid tenantId, ApplicationUser user, Booking booking, decimal amount, string transactionId);
     Task SendRefundNoticeAsync(Guid tenantId, ApplicationUser user, Booking booking, decimal refundedAmount);
+    Task SendTeeTimeReminderAsync(Guid tenantId, Booking booking, ApplicationUser user, TeeSlot slot);
     Task SendPasswordResetEmailAsync(ApplicationUser user, string resetLink, Guid? preferredTenantId = null);
     Task<TestNotificationResult> SendTestEmailAsync(Guid tenantId, string targetEmail, TenantNotificationSettings? customSettings = null);
     Task<TestNotificationResult> SendTestSmsAsync(Guid tenantId, string targetPhone, TenantNotificationSettings? customSettings = null);
+    Task<TestNotificationResult> SendTestWhatsAppAsync(Guid tenantId, string targetPhone, TenantNotificationSettings? customSettings = null);
 }
 
 public record TestNotificationResult(bool Success, string Message);
@@ -98,10 +100,16 @@ public class TenantNotificationService : ITenantNotificationService
             await DispatchEmailAsync(settings, tenant, user.Email, subject, sb.ToString());
         }
 
-        // 2. SMS Notification
-        if (settings != null && settings.SendBookingConfirmationSms && !string.IsNullOrWhiteSpace(user.PhoneNumber))
+        // 2. WhatsApp Notification
+        if (settings != null && settings.SendBookingConfirmationWhatsApp && !string.IsNullOrWhiteSpace(user.PhoneNumber))
         {
-            var smsBody = $"{courseName}: Tee time confirmed for {startTimeStr} ({booking.PartySize} players). Ref: {booking.Id.ToString()[..8].ToUpperInvariant()}";
+            var waBody = $"⛳ *Tee Time Confirmed — {courseName}*\n\nHi {user.FirstName}, your reservation for *{startTimeStr} (UTC)* is confirmed!\n• Players: {booking.PartySize}\n• Amount: {currency}{totalPrice:F2}\n• Booking Ref: #{booking.Id.ToString()[..8].ToUpperInvariant()}\n\nSee you on the course!";
+            await DispatchWhatsAppAsync(settings, user.PhoneNumber, waBody);
+        }
+        // 3. SMS Notification
+        else if (settings != null && settings.SendBookingConfirmationSms && !string.IsNullOrWhiteSpace(user.PhoneNumber))
+        {
+            var smsBody = $"{courseName}: Tee time confirmed for {startTimeStr} ({booking.PartySize} players). Ref: #{booking.Id.ToString()[..8].ToUpperInvariant()}";
             await DispatchSmsAsync(settings, user.PhoneNumber, smsBody);
         }
     }
@@ -197,8 +205,6 @@ public class TenantNotificationService : ITenantNotificationService
 
     public async Task SendPaymentReceiptAsync(Guid tenantId, ApplicationUser user, Booking booking, decimal amount, string transactionId)
     {
-        if (string.IsNullOrWhiteSpace(user.Email)) return;
-
         var tenant = await _db.Tenants.IgnoreQueryFilters().FirstOrDefaultAsync(t => t.Id == tenantId);
         var settings = await _db.TenantNotificationSettings.IgnoreQueryFilters().FirstOrDefaultAsync(s => s.TenantId == tenantId);
 
@@ -206,15 +212,82 @@ public class TenantNotificationService : ITenantNotificationService
         var currency = tenant?.CurrencySymbol ?? "₹";
         var startTimeStr = booking.TeeSlot != null ? booking.TeeSlot.StartTime.ToString("f") : "Upcoming";
 
-        var subject = $"Payment Receipt — {courseName}";
-        var body = $"Hi {user.FirstName},\n\n" +
-                   $"Thank you! Your payment of {currency}{amount:F2} for {booking.PartySize} player(s) has been received.\n" +
-                   $"• Facility: {courseName}\n" +
-                   $"• Transaction ID: {transactionId}\n" +
-                   $"• Tee Time: {startTimeStr} (UTC)\n\n" +
-                   $"— {courseName} Team";
+        // 1. Email Receipt
+        if ((settings == null || settings.SendPaymentReceiptEmail) && !string.IsNullOrWhiteSpace(user.Email))
+        {
+            var subject = $"Payment Receipt — {courseName}";
+            var body = $"Hi {user.FirstName},\n\n" +
+                       $"Thank you! Your payment of {currency}{amount:F2} for {booking.PartySize} player(s) has been received.\n" +
+                       $"• Facility: {courseName}\n" +
+                       $"• Transaction ID: {transactionId}\n" +
+                       $"• Tee Time: {startTimeStr} (UTC)\n" +
+                       $"• Booking Ref: #{booking.Id.ToString()[..8].ToUpperInvariant()}\n\n" +
+                       $"— {courseName} Clubhouse Desk";
 
-        await DispatchEmailAsync(settings, tenant, user.Email, subject, body);
+            await DispatchEmailAsync(settings, tenant, user.Email, subject, body);
+        }
+
+        // 2. WhatsApp Receipt
+        if (settings != null && settings.SendPaymentReceiptWhatsApp && !string.IsNullOrWhiteSpace(user.PhoneNumber))
+        {
+            var waBody = $"🧾 *Receipt from {courseName}*\n\nPayment received: *{currency}{amount:F2}* ({booking.PartySize} players)\nTee Time: {startTimeStr}\nReceipt Ref: #{transactionId}\n\nThank you for playing with us!";
+            await DispatchWhatsAppAsync(settings, user.PhoneNumber, waBody);
+        }
+    }
+
+    public async Task SendTeeTimeReminderAsync(Guid tenantId, Booking booking, ApplicationUser user, TeeSlot slot)
+    {
+        if (string.IsNullOrWhiteSpace(user.Email) && string.IsNullOrWhiteSpace(user.PhoneNumber)) return;
+
+        var tenant = await _db.Tenants.IgnoreQueryFilters().FirstOrDefaultAsync(t => t.Id == tenantId);
+        var settings = await _db.TenantNotificationSettings.IgnoreQueryFilters().FirstOrDefaultAsync(s => s.TenantId == tenantId);
+
+        var courseName = tenant?.Name ?? "OpenGolf";
+        var startTimeStr = slot.StartTime.ToString("f");
+
+        // 1. Email Reminder
+        if ((settings == null || settings.SendReminder24HoursBefore) && !string.IsNullOrWhiteSpace(user.Email))
+        {
+            var subject = $"Upcoming Tee Time Reminder — {courseName}";
+            var sb = new StringBuilder();
+            sb.AppendLine($"Hi {user.FirstName},");
+            sb.AppendLine();
+            sb.AppendLine($"This is a friendly reminder for your upcoming round at {courseName}!");
+            sb.AppendLine($"• Tee Time: {startTimeStr} (UTC)");
+            sb.AppendLine($"• Players: {booking.PartySize}");
+            sb.AppendLine($"• Booking Reference: #{booking.Id.ToString()[..8].ToUpperInvariant()}");
+
+            if (!string.IsNullOrWhiteSpace(settings?.CustomDressCodePolicy))
+            {
+                sb.AppendLine();
+                sb.AppendLine($"Dress Code & Policies:\n{settings.CustomDressCodePolicy}");
+            }
+
+            if (!string.IsNullOrWhiteSpace(settings?.CustomDirectionsNotes))
+            {
+                sb.AppendLine();
+                sb.AppendLine($"Bag Drop & Arrival Directions:\n{settings.CustomDirectionsNotes}");
+            }
+
+            sb.AppendLine();
+            sb.AppendLine("Please arrive 20 minutes prior to your tee time to check in at the clubhouse pro-shop.");
+            sb.AppendLine($"\n— {courseName} Starter Team");
+
+            await DispatchEmailAsync(settings, tenant, user.Email, subject, sb.ToString());
+        }
+
+        // 2. WhatsApp Reminder
+        if (settings != null && settings.SendReminderWhatsApp && !string.IsNullOrWhiteSpace(user.PhoneNumber))
+        {
+            var waBody = $"⛳ *{courseName} Reminder*: Your tee time is approaching on {startTimeStr} ({booking.PartySize} players). Ref: #{booking.Id.ToString()[..8].ToUpperInvariant()}. Please arrive 20 mins early for check-in.";
+            await DispatchWhatsAppAsync(settings, user.PhoneNumber, waBody);
+        }
+        // 3. SMS Reminder
+        else if (settings != null && settings.SendBookingConfirmationSms && !string.IsNullOrWhiteSpace(user.PhoneNumber))
+        {
+            var smsBody = $"{courseName} Reminder: Tee time on {startTimeStr} ({booking.PartySize} players). Ref #{booking.Id.ToString()[..8].ToUpperInvariant()}. Please arrive 20 mins early.";
+            await DispatchSmsAsync(settings, user.PhoneNumber, smsBody);
+        }
     }
 
     public async Task SendRefundNoticeAsync(Guid tenantId, ApplicationUser user, Booking booking, decimal refundedAmount)
@@ -465,6 +538,65 @@ public class TenantNotificationService : ITenantNotificationService
         {
             // Dev/Platform fallback: log to console
             _logger.LogInformation("=== SMS NOTIFICATION (Console Provider) ===\nTo: {To}\nMessage: {Body}\n===========================================", toPhone, body);
+        }
+    }
+
+    public async Task<TestNotificationResult> SendTestWhatsAppAsync(Guid tenantId, string targetPhone, TenantNotificationSettings? customSettings = null)
+    {
+        var tenant = await _db.Tenants.IgnoreQueryFilters().FirstOrDefaultAsync(t => t.Id == tenantId);
+        var settings = customSettings ?? await _db.TenantNotificationSettings.IgnoreQueryFilters().FirstOrDefaultAsync(s => s.TenantId == tenantId);
+
+        var courseName = tenant?.Name ?? "OpenGolf";
+        var message = $"⛳ *{courseName} WhatsApp Test*: Your messaging integration is active and configured properly! (Sent {DateTime.UtcNow:t} UTC)";
+
+        try
+        {
+            await DispatchWhatsAppAsync(settings, targetPhone, message);
+            return new TestNotificationResult(true, $"Test WhatsApp message successfully dispatched to {targetPhone}");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to send test WhatsApp message for tenant {TenantId}", tenantId);
+            return new TestNotificationResult(false, ex.Message);
+        }
+    }
+
+    private async Task DispatchWhatsAppAsync(TenantNotificationSettings? settings, string toPhone, string body)
+    {
+        var formattedTo = toPhone.StartsWith("whatsapp:") ? toPhone : $"whatsapp:{toPhone}";
+        var fromNumber = !string.IsNullOrWhiteSpace(settings?.WhatsAppFromNumber)
+            ? settings.WhatsAppFromNumber
+            : settings?.TwilioFromNumber ?? "+14155238886";
+        var formattedFrom = fromNumber.StartsWith("whatsapp:") ? fromNumber : $"whatsapp:{fromNumber}";
+
+        if (settings != null && (settings.UseCustomWhatsApp || settings.UseCustomSms) && !string.IsNullOrWhiteSpace(settings.TwilioAccountSid) && !string.IsNullOrWhiteSpace(settings.TwilioAuthToken))
+        {
+            var client = _httpClientFactory.CreateClient();
+            var authHeader = Convert.ToBase64String(Encoding.ASCII.GetBytes($"{settings.TwilioAccountSid}:{settings.TwilioAuthToken}"));
+            client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic", authHeader);
+
+            var form = new FormUrlEncodedContent(new[]
+            {
+                new KeyValuePair<string, string>("To", formattedTo),
+                new KeyValuePair<string, string>("From", formattedFrom),
+                new KeyValuePair<string, string>("Body", body)
+            });
+
+            var url = $"https://api.twilio.com/2010-04-01/Accounts/{settings.TwilioAccountSid}/Messages.json";
+            var response = await client.PostAsync(url, form);
+
+            if (!response.IsOk())
+            {
+                var errorText = await response.Content.ReadAsStringAsync();
+                _logger.LogWarning("Twilio WhatsApp failed ({Status}): {Error}", response.StatusCode, errorText);
+                throw new InvalidOperationException($"WhatsApp delivery failed ({response.StatusCode}): {errorText}");
+            }
+
+            _logger.LogInformation("WhatsApp message dispatched via Twilio to {Phone}", toPhone);
+        }
+        else
+        {
+            _logger.LogInformation("=== WHATSAPP NOTIFICATION (Console Provider) ===\nTo: {To}\nFrom: {From}\nMessage: {Body}\n==================================================", formattedTo, formattedFrom, body);
         }
     }
 }

@@ -557,6 +557,7 @@ public class BookingsController : ControllerBase
     {
         var booking = await _db.Bookings.IgnoreQueryFilters()
             .Include(b => b.TeeSlot)
+            .Include(b => b.User)
             .FirstOrDefaultAsync(b => b.Id == bookingId && b.TenantId == tenantId);
         if (booking == null) return NotFound("Booking not found.");
 
@@ -572,6 +573,24 @@ public class BookingsController : ControllerBase
         booking.PaymentStatus = PaymentStatus.Paid;
         booking.AmountPaid = amount;
         await _db.SaveChangesAsync();
+
+        if (booking.User != null)
+        {
+            try
+            {
+                await _notificationService.SendPaymentReceiptAsync(
+                    tenantId,
+                    booking.User,
+                    booking,
+                    booking.AmountPaid,
+                    $"CLUBHOUSE-{booking.Id.ToString()[..8].ToUpperInvariant()}"
+                );
+            }
+            catch
+            {
+                // Non-fatal if receipt delivery fails
+            }
+        }
 
         return Ok(new CollectPaymentResponse(booking.Id, booking.PaymentStatus.ToString(), booking.AmountPaid));
     }

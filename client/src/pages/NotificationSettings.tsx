@@ -16,7 +16,7 @@ export default function NotificationSettingsPage() {
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
-  // Form State
+  // Email State
   const [useCustomEmail, setUseCustomEmail] = useState(false);
   const [emailProvider, setEmailProvider] = useState("Smtp");
   const [fromEmail, setFromEmail] = useState("");
@@ -37,10 +37,21 @@ export default function NotificationSettingsPage() {
   const [hasTwilioAuthToken, setHasTwilioAuthToken] = useState(false);
   const [twilioFromNumber, setTwilioFromNumber] = useState("");
 
+  // WhatsApp State
+  const [useCustomWhatsApp, setUseCustomWhatsApp] = useState(false);
+  const [whatsAppProvider, setWhatsAppProvider] = useState("TwilioWhatsApp");
+  const [whatsAppFromNumber, setWhatsAppFromNumber] = useState("");
+
   // Automation Toggles
   const [sendBookingConfirmationEmail, setSendBookingConfirmationEmail] = useState(true);
   const [sendBookingConfirmationSms, setSendBookingConfirmationSms] = useState(false);
+  const [sendBookingConfirmationWhatsApp, setSendBookingConfirmationWhatsApp] = useState(false);
+
+  const [sendPaymentReceiptEmail, setSendPaymentReceiptEmail] = useState(true);
+  const [sendPaymentReceiptWhatsApp, setSendPaymentReceiptWhatsApp] = useState(false);
+
   const [sendReminder24HoursBefore, setSendReminder24HoursBefore] = useState(true);
+  const [sendReminderWhatsApp, setSendReminderWhatsApp] = useState(false);
   const [sendCancellationNotice, setSendCancellationNotice] = useState(true);
 
   // Policies & Templates
@@ -56,6 +67,10 @@ export default function NotificationSettingsPage() {
   const [testPhoneNumber, setTestPhoneNumber] = useState("");
   const [testSmsLoading, setTestSmsLoading] = useState(false);
   const [testSmsStatus, setTestSmsStatus] = useState<{ ok: boolean; msg: string } | null>(null);
+
+  const [testWhatsAppPhone, setTestWhatsAppPhone] = useState("");
+  const [testWhatsAppLoading, setTestWhatsAppLoading] = useState(false);
+  const [testWhatsAppStatus, setTestWhatsAppStatus] = useState<{ ok: boolean; msg: string } | null>(null);
 
   useEffect(() => {
     if (!tenantId) return;
@@ -81,9 +96,19 @@ export default function NotificationSettingsPage() {
         setHasTwilioAuthToken(data.hasTwilioAuthToken);
         setTwilioFromNumber(data.twilioFromNumber || "");
 
+        setUseCustomWhatsApp(data.useCustomWhatsApp || false);
+        setWhatsAppProvider(data.whatsAppProvider || "TwilioWhatsApp");
+        setWhatsAppFromNumber(data.whatsAppFromNumber || "");
+
         setSendBookingConfirmationEmail(data.sendBookingConfirmationEmail);
         setSendBookingConfirmationSms(data.sendBookingConfirmationSms);
+        setSendBookingConfirmationWhatsApp(data.sendBookingConfirmationWhatsApp || false);
+
+        setSendPaymentReceiptEmail(data.sendPaymentReceiptEmail !== false);
+        setSendPaymentReceiptWhatsApp(data.sendPaymentReceiptWhatsApp || false);
+
         setSendReminder24HoursBefore(data.sendReminder24HoursBefore);
+        setSendReminderWhatsApp(data.sendReminderWhatsApp || false);
         setSendCancellationNotice(data.sendCancellationNotice);
 
         setCustomEmailFooter(data.customEmailFooter || "");
@@ -118,9 +143,16 @@ export default function NotificationSettingsPage() {
       twilioAccountSid: twilioAccountSid || null,
       twilioAuthToken: twilioAuthToken || null,
       twilioFromNumber: twilioFromNumber || null,
+      useCustomWhatsApp,
+      whatsAppProvider,
+      whatsAppFromNumber: whatsAppFromNumber || null,
       sendBookingConfirmationEmail,
       sendBookingConfirmationSms,
+      sendBookingConfirmationWhatsApp,
+      sendPaymentReceiptEmail,
+      sendPaymentReceiptWhatsApp,
       sendReminder24HoursBefore,
+      sendReminderWhatsApp,
       sendCancellationNotice,
       customEmailFooter: customEmailFooter || null,
       customDressCodePolicy: customDressCodePolicy || null,
@@ -133,7 +165,7 @@ export default function NotificationSettingsPage() {
       setHasTwilioAuthToken(updated.hasTwilioAuthToken);
       setSmtpPassword("");
       setTwilioAuthToken("");
-      setSuccessMsg("Notification settings saved successfully!");
+      setSuccessMsg("All notification channels and automation rules saved successfully!");
       setTimeout(() => setSuccessMsg(null), 4000);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save notification settings.");
@@ -176,6 +208,23 @@ export default function NotificationSettingsPage() {
     }
   }
 
+  async function handleTestWhatsApp() {
+    if (!tenantId || !testWhatsAppPhone) return;
+    setTestWhatsAppLoading(true);
+    setTestWhatsAppStatus(null);
+    try {
+      const res = await notificationsApi.testWhatsApp(tenantId, testWhatsAppPhone, user?.token);
+      setTestWhatsAppStatus({ ok: true, msg: res.message });
+    } catch (err) {
+      setTestWhatsAppStatus({
+        ok: false,
+        msg: err instanceof Error ? err.message : "Test WhatsApp failed.",
+      });
+    } finally {
+      setTestWhatsAppLoading(false);
+    }
+  }
+
   if (loading) {
     return (
       <AdminLayout>
@@ -193,45 +242,51 @@ export default function NotificationSettingsPage() {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-gray-200 pb-5">
           <div>
             <h1 className="text-2xl font-bold font-display text-gray-900 tracking-tight">
-              Email &amp; SMS Settings
+              Automated Notifications &amp; Receipts
             </h1>
             <p className="text-sm text-gray-500 mt-1">
-              Configure course-specific sender emails, custom SMTP, Twilio SMS alerts, and player confirmation policies.
+              Configure course sender emails, WhatsApp &amp; SMS alerts, clubhouse payment receipts, and automated pre-round reminders.
             </p>
           </div>
+
           <button
             onClick={handleSave}
             disabled={saving}
-            className="px-5 py-2.5 rounded-xl bg-fairway text-white font-semibold text-sm hover:bg-fairway/90 transition-all shadow-sm hover:shadow flex items-center justify-center gap-2"
+            className="self-start sm:self-auto px-6 py-2.5 rounded-xl bg-gold text-fairway font-bold text-sm hover:-translate-y-px transition-all shadow-md hover:shadow-lg disabled:opacity-50"
           >
-            {saving ? "Saving..." : "Save Settings"}
+            {saving ? "Saving Changes..." : "Save Settings"}
           </button>
         </div>
 
-        {/* Banners */}
+        {/* Global Alerts */}
         {error && (
-          <div className="p-4 rounded-xl bg-red-50 border border-red-200 text-red-700 text-sm flex items-center gap-3">
-            <span>⚠️</span>
-            <span>{error}</span>
+          <div className="p-4 rounded-xl bg-red-50 border border-red-200 text-red-700 text-sm flex items-center justify-between">
+            <span>⚠️ {error}</span>
+            <button onClick={() => setError(null)} className="text-xs font-bold underline">
+              Dismiss
+            </button>
           </div>
         )}
+
         {successMsg && (
-          <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-sm flex items-center gap-3">
-            <span>✓</span>
-            <span>{successMsg}</span>
+          <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-sm flex items-center justify-between animate-fade-in">
+            <span>✓ {successMsg}</span>
+            <button onClick={() => setSuccessMsg(null)} className="text-xs font-bold underline">
+              Close
+            </button>
           </div>
         )}
 
         <form onSubmit={handleSave} className="space-y-8">
-          {/* Card 1: Email Configuration */}
+          {/* Card 1: Custom Sender Email & SMTP */}
           <div className="bg-white rounded-2xl border border-[#E4E8E3] shadow-sm p-6 sm:p-8 space-y-6">
             <div className="flex items-start justify-between">
               <div>
                 <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-                  <span>✉️</span> Course Email Dispatch
+                  <span>✉️</span> Sender Email &amp; SMTP Gateway
                 </h2>
                 <p className="text-xs text-gray-500 mt-0.5">
-                  Choose between OpenGolf's default email service or connect your course's own SMTP relay.
+                  Send transactional emails using your club’s custom email domain or SMTP provider (Brevo, SendGrid, Mailgun, Amazon SES).
                 </p>
               </div>
               <label className="relative inline-flex items-center cursor-pointer">
@@ -243,41 +298,26 @@ export default function NotificationSettingsPage() {
                 />
                 <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-fairway"></div>
                 <span className="ml-3 text-xs font-semibold text-gray-700">
-                  {useCustomEmail ? "Custom SMTP Active" : "Platform Mailer"}
+                  {useCustomEmail ? "Custom SMTP Active" : "Platform Managed"}
                 </span>
               </label>
             </div>
 
             {useCustomEmail ? (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t border-gray-100">
-                <div className="md:col-span-2">
+                <div>
                   <label className="block text-xs font-semibold text-gray-700 mb-1">
-                    Email Service Provider
+                    Provider Type
                   </label>
-                  <div className="flex gap-4">
-                    <label className="flex items-center gap-2 text-xs font-semibold cursor-pointer">
-                      <input
-                        type="radio"
-                        name="emailProvider"
-                        value="Smtp"
-                        checked={emailProvider === "Smtp"}
-                        onChange={() => setEmailProvider("Smtp")}
-                        className="text-fairway focus:ring-fairway"
-                      />
-                      Universal SMTP Relay (SendGrid / AWS SES / Gmail / Zoho / Custom)
-                    </label>
-                    <label className="flex items-center gap-2 text-xs font-semibold cursor-pointer">
-                      <input
-                        type="radio"
-                        name="emailProvider"
-                        value="Mailgun"
-                        checked={emailProvider === "Mailgun"}
-                        onChange={() => setEmailProvider("Mailgun")}
-                        className="text-fairway focus:ring-fairway"
-                      />
-                      Mailgun REST API
-                    </label>
-                  </div>
+                  <select
+                    value={emailProvider}
+                    onChange={(e) => setEmailProvider(e.target.value)}
+                    className="w-full px-3.5 py-2 text-sm rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-fairway/20 focus:border-fairway bg-white"
+                  >
+                    <option value="Smtp">Standard SMTP / Brevo / SES</option>
+                    <option value="Mailgun">Mailgun REST API</option>
+                    <option value="SendGrid">SendGrid API</option>
+                  </select>
                 </div>
 
                 <div>
@@ -286,7 +326,7 @@ export default function NotificationSettingsPage() {
                   </label>
                   <input
                     type="text"
-                    placeholder="e.g. Pine Hollow Pro Shop or Mailgun Sandbox"
+                    placeholder="e.g. Pine Valley Golf Club"
                     value={fromName}
                     onChange={(e) => setFromName(e.target.value)}
                     className="w-full px-3.5 py-2 text-sm rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-fairway/20 focus:border-fairway"
@@ -299,7 +339,7 @@ export default function NotificationSettingsPage() {
                   </label>
                   <input
                     type="email"
-                    placeholder={emailProvider === "Mailgun" ? "e.g. postmaster@sandbox...mailgun.org" : "e.g. proshop@pinehollowgolf.com"}
+                    placeholder="reservations@pinevalley.com"
                     value={fromEmail}
                     onChange={(e) => setFromEmail(e.target.value)}
                     className="w-full px-3.5 py-2 text-sm rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-fairway/20 focus:border-fairway"
@@ -308,124 +348,90 @@ export default function NotificationSettingsPage() {
 
                 <div>
                   <label className="block text-xs font-semibold text-gray-700 mb-1">
-                    Reply-To Email Address
+                    Reply-To Email Address (Optional)
                   </label>
                   <input
                     type="email"
-                    placeholder="e.g. support@pinehollowgolf.com"
+                    placeholder="proshop@pinevalley.com"
                     value={replyToEmail}
                     onChange={(e) => setReplyToEmail(e.target.value)}
                     className="w-full px-3.5 py-2 text-sm rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-fairway/20 focus:border-fairway"
                   />
                 </div>
 
-                {emailProvider === "Mailgun" ? (
-                  <>
-                    <div>
-                      <label className="block text-xs font-semibold text-gray-700 mb-1">
-                        Mailgun Domain / Sandbox Domain
-                      </label>
-                      <input
-                        type="text"
-                        placeholder="e.g. sandboxcf1fbccd40e14599a863b5d3c0ef4d20.mailgun.org"
-                        value={smtpHost}
-                        onChange={(e) => setSmtpHost(e.target.value)}
-                        className="w-full px-3.5 py-2 text-sm rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-fairway/20 focus:border-fairway"
-                      />
-                    </div>
+                <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
+                  <div className="md:col-span-2">
+                    <label className="block text-xs font-semibold text-gray-700 mb-1">
+                      SMTP Host Server
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="smtp-relay.brevo.com or smtp.mailgun.org"
+                      value={smtpHost}
+                      onChange={(e) => setSmtpHost(e.target.value)}
+                      className="w-full px-3.5 py-2 text-sm rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-fairway/20 focus:border-fairway"
+                    />
+                  </div>
 
-                    <div className="md:col-span-2">
-                      <label className="block text-xs font-semibold text-gray-700 mb-1">
-                        Mailgun API Key
-                      </label>
-                      <input
-                        type="password"
-                        placeholder={hasSmtpPassword ? "•••••••••••• (Saved. Enter new key to update)" : "Enter your Mailgun private API key"}
-                        value={smtpPassword}
-                        onChange={(e) => setSmtpPassword(e.target.value)}
-                        className="w-full px-3.5 py-2 text-sm rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-fairway/20 focus:border-fairway font-mono text-xs"
-                      />
-                      <p className="mt-1 text-[11px] text-gray-500">
-                        Find your Private API key in Mailgun Dashboard &gt; Sending &gt; API keys.
-                      </p>
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <div>
-                      <label className="block text-xs font-semibold text-gray-700 mb-1">
-                        SMTP Host / Server
-                      </label>
-                      <input
-                        type="text"
-                        placeholder="e.g. smtp.sendgrid.net or smtp.gmail.com"
-                        value={smtpHost}
-                        onChange={(e) => setSmtpHost(e.target.value)}
-                        className="w-full px-3.5 py-2 text-sm rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-fairway/20 focus:border-fairway"
-                      />
-                    </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-700 mb-1">
+                      Port
+                    </label>
+                    <input
+                      type="number"
+                      placeholder="587"
+                      value={smtpPort}
+                      onChange={(e) => setSmtpPort(Number(e.target.value) || 587)}
+                      className="w-full px-3.5 py-2 text-sm rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-fairway/20 focus:border-fairway"
+                    />
+                  </div>
+                </div>
 
-                    <div>
-                      <label className="block text-xs font-semibold text-gray-700 mb-1">
-                        SMTP Port
-                      </label>
-                      <input
-                        type="number"
-                        value={smtpPort}
-                        onChange={(e) => setSmtpPort(parseInt(e.target.value) || 587)}
-                        className="w-full px-3.5 py-2 text-sm rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-fairway/20 focus:border-fairway"
-                      />
-                    </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">
+                    SMTP Username / Login Key
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="smtp-user@domain.com"
+                    value={smtpUsername}
+                    onChange={(e) => setSmtpUsername(e.target.value)}
+                    className="w-full px-3.5 py-2 text-sm rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-fairway/20 focus:border-fairway"
+                  />
+                </div>
 
-                    <div>
-                      <label className="block text-xs font-semibold text-gray-700 mb-1">
-                        SMTP Username
-                      </label>
-                      <input
-                        type="text"
-                        placeholder="apikey or username"
-                        value={smtpUsername}
-                        onChange={(e) => setSmtpUsername(e.target.value)}
-                        className="w-full px-3.5 py-2 text-sm rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-fairway/20 focus:border-fairway"
-                      />
-                    </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">
+                    SMTP Password / Secret Token
+                  </label>
+                  <input
+                    type="password"
+                    placeholder={hasSmtpPassword ? "•••••••••••• (Saved. Enter new to change)" : "Enter SMTP password or API token"}
+                    value={smtpPassword}
+                    onChange={(e) => setSmtpPassword(e.target.value)}
+                    className="w-full px-3.5 py-2 text-sm rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-fairway/20 focus:border-fairway"
+                  />
+                </div>
 
-                    <div className="md:col-span-2">
-                      <label className="block text-xs font-semibold text-gray-700 mb-1">
-                        SMTP Password / API Key
-                      </label>
-                      <div className="flex gap-2">
-                        <input
-                          type="password"
-                          placeholder={hasSmtpPassword ? "•••••••••••• (Saved. Enter new to change)" : "Enter SMTP password or API token"}
-                          value={smtpPassword}
-                          onChange={(e) => setSmtpPassword(e.target.value)}
-                          className="flex-1 px-3.5 py-2 text-sm rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-fairway/20 focus:border-fairway"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="md:col-span-2 flex items-center gap-2 pt-1">
-                      <input
-                        type="checkbox"
-                        id="sslToggle"
-                        checked={smtpEnableSsl}
-                        onChange={(e) => setSmtpEnableSsl(e.target.checked)}
-                        className="rounded text-fairway focus:ring-fairway"
-                      />
-                      <label htmlFor="sslToggle" className="text-xs text-gray-700 font-medium">
-                        Enable SSL / TLS encryption (recommended for port 587 / 465)
-                      </label>
-                    </div>
-                  </>
-                )}
+                <div className="md:col-span-2 flex items-center gap-2 pt-1">
+                  <input
+                    type="checkbox"
+                    id="sslToggle"
+                    checked={smtpEnableSsl}
+                    onChange={(e) => setSmtpEnableSsl(e.target.checked)}
+                    className="rounded text-fairway focus:ring-fairway"
+                  />
+                  <label htmlFor="sslToggle" className="text-xs text-gray-700 font-medium">
+                    Enable SSL / TLS encryption (recommended for port 587 / 465)
+                  </label>
+                </div>
               </div>
             ) : (
               <div className="p-4 rounded-xl bg-gray-50 border border-gray-100 text-xs text-gray-600 flex items-center justify-between">
                 <div>
                   <p className="font-semibold text-gray-900">Using Platform Managed Email Service</p>
                   <p className="mt-0.5 text-gray-500">
-                    All player emails will be sent through OpenGolf’s high-deliverability email infrastructure with your course branding.
+                    All player emails will be sent through Chip &amp; Chill’s high-deliverability email infrastructure with your course branding.
                   </p>
                 </div>
               </div>
@@ -461,7 +467,96 @@ export default function NotificationSettingsPage() {
             </div>
           </div>
 
-          {/* Card 2: SMS Alerts */}
+          {/* Card 2: WhatsApp Messaging Integration */}
+          <div className="bg-white rounded-2xl border border-[#E4E8E3] shadow-sm p-6 sm:p-8 space-y-6">
+            <div className="flex items-start justify-between">
+              <div>
+                <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                  <span>💬</span> WhatsApp Business / Twilio Channel
+                </h2>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  Send rich booking confirmations, digital clubhouse payment receipts, and tee time reminders over WhatsApp.
+                </p>
+              </div>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={useCustomWhatsApp}
+                  onChange={(e) => setUseCustomWhatsApp(e.target.checked)}
+                  className="sr-only peer"
+                />
+                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
+                <span className="ml-3 text-xs font-semibold text-gray-700">
+                  {useCustomWhatsApp ? "WhatsApp Active" : "Disabled"}
+                </span>
+              </label>
+            </div>
+
+            {useCustomWhatsApp && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t border-gray-100">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">
+                    WhatsApp Gateway Provider
+                  </label>
+                  <select
+                    value={whatsAppProvider}
+                    onChange={(e) => setWhatsAppProvider(e.target.value)}
+                    className="w-full px-3.5 py-2 text-sm rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-fairway/20 focus:border-fairway bg-white"
+                  >
+                    <option value="TwilioWhatsApp">Twilio WhatsApp Messaging API</option>
+                    <option value="MetaCloudApi">Meta WhatsApp Cloud API</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">
+                    WhatsApp Sender Number / Sender ID
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="+14155238886 (or whatsapp:+14155238886)"
+                    value={whatsAppFromNumber}
+                    onChange={(e) => setWhatsAppFromNumber(e.target.value)}
+                    className="w-full px-3.5 py-2 text-sm rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-fairway/20 focus:border-fairway"
+                  />
+                  <p className="text-[11px] text-gray-500 mt-1">
+                    Uses your Twilio Account SID &amp; Auth Token configured in the SMS section below.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Test WhatsApp Section */}
+            <div className="pt-4 border-t border-gray-100">
+              <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">
+                Live Test WhatsApp Message
+              </label>
+              <div className="flex flex-col sm:flex-row gap-2 max-w-lg">
+                <input
+                  type="tel"
+                  placeholder="+919876543210"
+                  value={testWhatsAppPhone}
+                  onChange={(e) => setTestWhatsAppPhone(e.target.value)}
+                  className="flex-1 px-3.5 py-2 text-sm rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-fairway/20 focus:border-fairway"
+                />
+                <button
+                  type="button"
+                  onClick={handleTestWhatsApp}
+                  disabled={testWhatsAppLoading || !testWhatsAppPhone}
+                  className="px-4 py-2 bg-emerald-100 hover:bg-emerald-200 text-emerald-900 rounded-xl text-xs font-semibold transition-colors disabled:opacity-50"
+                >
+                  {testWhatsAppLoading ? "Sending..." : "Send Test WhatsApp"}
+                </button>
+              </div>
+              {testWhatsAppStatus && (
+                <p className={`mt-2 text-xs font-medium ${testWhatsAppStatus.ok ? "text-emerald-700" : "text-red-600"}`}>
+                  {testWhatsAppStatus.ok ? "✓ " : "⚠️ "} {testWhatsAppStatus.msg}
+                </p>
+              )}
+            </div>
+          </div>
+
+          {/* Card 3: SMS Alerts (Twilio) */}
           <div className="bg-white rounded-2xl border border-[#E4E8E3] shadow-sm p-6 sm:p-8 space-y-6">
             <div className="flex items-start justify-between">
               <div>
@@ -469,7 +564,7 @@ export default function NotificationSettingsPage() {
                   <span>📱</span> SMS &amp; Text Alerts (Twilio)
                 </h2>
                 <p className="text-xs text-gray-500 mt-0.5">
-                  Send instant booking confirmations and tee time reminders directly to golfers’ mobile phones.
+                  Send instant booking confirmations and tee time reminders directly to golfers’ mobile phones via SMS.
                 </p>
               </div>
               <label className="relative inline-flex items-center cursor-pointer">
@@ -559,13 +654,13 @@ export default function NotificationSettingsPage() {
             </div>
           </div>
 
-          {/* Card 3: Notification Automation Rules */}
+          {/* Card 4: Notification Automation Rules */}
           <div className="bg-white rounded-2xl border border-[#E4E8E3] shadow-sm p-6 sm:p-8 space-y-4">
             <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-              <span>⚡</span> Player Notification Triggers
+              <span>⚡</span> Player Notification Triggers &amp; Automation
             </h2>
             <p className="text-xs text-gray-500">
-              Choose which events automatically dispatch emails or SMS to golfers.
+              Choose which events automatically dispatch emails, WhatsApp, or SMS messages to golfers.
             </p>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
@@ -585,6 +680,19 @@ export default function NotificationSettingsPage() {
               <label className="flex items-center gap-3 p-3.5 rounded-xl border border-gray-100 hover:bg-gray-50 cursor-pointer transition-colors">
                 <input
                   type="checkbox"
+                  checked={sendBookingConfirmationWhatsApp}
+                  onChange={(e) => setSendBookingConfirmationWhatsApp(e.target.checked)}
+                  className="rounded text-emerald-600 focus:ring-emerald-600 h-4 w-4"
+                />
+                <div>
+                  <div className="text-sm font-semibold text-gray-900">Booking Confirmation WhatsApp</div>
+                  <div className="text-xs text-gray-500">Send WhatsApp pass with tee details</div>
+                </div>
+              </label>
+
+              <label className="flex items-center gap-3 p-3.5 rounded-xl border border-gray-100 hover:bg-gray-50 cursor-pointer transition-colors">
+                <input
+                  type="checkbox"
                   checked={sendBookingConfirmationSms}
                   onChange={(e) => setSendBookingConfirmationSms(e.target.checked)}
                   className="rounded text-fairway focus:ring-fairway h-4 w-4"
@@ -598,13 +706,52 @@ export default function NotificationSettingsPage() {
               <label className="flex items-center gap-3 p-3.5 rounded-xl border border-gray-100 hover:bg-gray-50 cursor-pointer transition-colors">
                 <input
                   type="checkbox"
+                  checked={sendPaymentReceiptEmail}
+                  onChange={(e) => setSendPaymentReceiptEmail(e.target.checked)}
+                  className="rounded text-fairway focus:ring-fairway h-4 w-4"
+                />
+                <div>
+                  <div className="text-sm font-semibold text-gray-900">Clubhouse Payment Receipt Email</div>
+                  <div className="text-xs text-gray-500">Send invoice when counter payment is collected</div>
+                </div>
+              </label>
+
+              <label className="flex items-center gap-3 p-3.5 rounded-xl border border-gray-100 hover:bg-gray-50 cursor-pointer transition-colors">
+                <input
+                  type="checkbox"
+                  checked={sendPaymentReceiptWhatsApp}
+                  onChange={(e) => setSendPaymentReceiptWhatsApp(e.target.checked)}
+                  className="rounded text-emerald-600 focus:ring-emerald-600 h-4 w-4"
+                />
+                <div>
+                  <div className="text-sm font-semibold text-gray-900">Clubhouse Payment Receipt WhatsApp</div>
+                  <div className="text-xs text-gray-500">Dispatch instant WhatsApp receipt on counter pay</div>
+                </div>
+              </label>
+
+              <label className="flex items-center gap-3 p-3.5 rounded-xl border border-gray-100 hover:bg-gray-50 cursor-pointer transition-colors">
+                <input
+                  type="checkbox"
                   checked={sendReminder24HoursBefore}
                   onChange={(e) => setSendReminder24HoursBefore(e.target.checked)}
                   className="rounded text-fairway focus:ring-fairway h-4 w-4"
                 />
                 <div>
-                  <div className="text-sm font-semibold text-gray-900">24-Hour Tee Time Reminder</div>
-                  <div className="text-xs text-gray-500">Remind player 24 hours prior to tee off</div>
+                  <div className="text-sm font-semibold text-gray-900">Pre-Round Tee Time Reminder Email</div>
+                  <div className="text-xs text-gray-500">Remind player 24h prior to tee off</div>
+                </div>
+              </label>
+
+              <label className="flex items-center gap-3 p-3.5 rounded-xl border border-gray-100 hover:bg-gray-50 cursor-pointer transition-colors">
+                <input
+                  type="checkbox"
+                  checked={sendReminderWhatsApp}
+                  onChange={(e) => setSendReminderWhatsApp(e.target.checked)}
+                  className="rounded text-emerald-600 focus:ring-emerald-600 h-4 w-4"
+                />
+                <div>
+                  <div className="text-sm font-semibold text-gray-900">Pre-Round Tee Time Reminder WhatsApp</div>
+                  <div className="text-xs text-gray-500">Send arrival notice &amp; bag drop instructions</div>
                 </div>
               </label>
 
@@ -623,13 +770,13 @@ export default function NotificationSettingsPage() {
             </div>
           </div>
 
-          {/* Card 4: Custom Notes & Policies */}
+          {/* Card 5: Custom Notes & Policies */}
           <div className="bg-white rounded-2xl border border-[#E4E8E3] shadow-sm p-6 sm:p-8 space-y-4">
             <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
               <span>📝</span> Course Policies &amp; Email Footers
             </h2>
             <p className="text-xs text-gray-500">
-              These custom notes are automatically merged into all player emails for your course.
+              These custom notes are automatically merged into all player emails and messaging receipts for your course.
             </p>
 
             <div className="space-y-4 pt-2">

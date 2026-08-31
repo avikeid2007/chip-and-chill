@@ -128,14 +128,14 @@ export default function App() {
           <Route path="/register" element={<Register />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/reset-password" element={<ResetPassword />} />
-          <Route path="/profile" element={<Profile />} />
+          <Route path="/profile" element={<RequireAuth><Profile /></RequireAuth>} />
 
           {/* Golfer */}
-          <Route path="/bookings" element={<MyBookings />} />
-          <Route path="/rounds" element={<RoundHistory />} />
-          <Route path="/rounds/new" element={<ScorecardEntry />} />
-          <Route path="/rounds/:id" element={<RoundDetail />} />
-          <Route path="/stats" element={<StatsDashboard />} />
+          <Route path="/bookings" element={<RequireAuth><MyBookings /></RequireAuth>} />
+          <Route path="/rounds" element={<RequireAuth><RoundHistory /></RequireAuth>} />
+          <Route path="/rounds/new" element={<RequireAuth><ScorecardEntry /></RequireAuth>} />
+          <Route path="/rounds/:id" element={<RequireAuth><RoundDetail /></RequireAuth>} />
+          <Route path="/stats" element={<RequireAuth><StatsDashboard /></RequireAuth>} />
 
           {/* Admin */}
           <Route path="/dashboard" element={<RequireCourseAdmin><Dashboard /></RequireCourseAdmin>} />

@@ -27,9 +27,16 @@ public record NotificationSettingsResponse(
     string? TwilioAccountSid,
     bool HasTwilioAuthToken,
     string? TwilioFromNumber,
+    bool UseCustomWhatsApp,
+    string WhatsAppProvider,
+    string? WhatsAppFromNumber,
     bool SendBookingConfirmationEmail,
     bool SendBookingConfirmationSms,
+    bool SendBookingConfirmationWhatsApp,
+    bool SendPaymentReceiptEmail,
+    bool SendPaymentReceiptWhatsApp,
     bool SendReminder24HoursBefore,
+    bool SendReminderWhatsApp,
     bool SendCancellationNotice,
     string? CustomEmailFooter,
     string? CustomDressCodePolicy,
@@ -54,9 +61,16 @@ public record UpdateNotificationSettingsRequest(
     string? TwilioAccountSid,
     string? TwilioAuthToken,
     string? TwilioFromNumber,
+    bool UseCustomWhatsApp,
+    string WhatsAppProvider,
+    string? WhatsAppFromNumber,
     bool SendBookingConfirmationEmail,
     bool SendBookingConfirmationSms,
+    bool SendBookingConfirmationWhatsApp,
+    bool SendPaymentReceiptEmail,
+    bool SendPaymentReceiptWhatsApp,
     bool SendReminder24HoursBefore,
+    bool SendReminderWhatsApp,
     bool SendCancellationNotice,
     string? CustomEmailFooter,
     string? CustomDressCodePolicy,
@@ -65,6 +79,7 @@ public record UpdateNotificationSettingsRequest(
 
 public record TestEmailRequest(string TargetEmail);
 public record TestSmsRequest(string TargetPhone);
+public record TestWhatsAppRequest(string TargetPhone);
 
 [ApiController]
 [Route("api/tenants/{tenantId:guid}/notifications")]
@@ -155,10 +170,19 @@ public class NotificationSettingsController : ControllerBase
         }
 
         settings.TwilioFromNumber = req.TwilioFromNumber;
+        settings.UseCustomWhatsApp = req.UseCustomWhatsApp;
+        settings.WhatsAppProvider = req.WhatsAppProvider;
+        settings.WhatsAppFromNumber = req.WhatsAppFromNumber;
+
         settings.SendBookingConfirmationEmail = req.SendBookingConfirmationEmail;
         settings.SendBookingConfirmationSms = req.SendBookingConfirmationSms;
+        settings.SendBookingConfirmationWhatsApp = req.SendBookingConfirmationWhatsApp;
+        settings.SendPaymentReceiptEmail = req.SendPaymentReceiptEmail;
+        settings.SendPaymentReceiptWhatsApp = req.SendPaymentReceiptWhatsApp;
         settings.SendReminder24HoursBefore = req.SendReminder24HoursBefore;
+        settings.SendReminderWhatsApp = req.SendReminderWhatsApp;
         settings.SendCancellationNotice = req.SendCancellationNotice;
+
         settings.CustomEmailFooter = req.CustomEmailFooter;
         settings.CustomDressCodePolicy = req.CustomDressCodePolicy;
         settings.CustomDirectionsNotes = req.CustomDirectionsNotes;
@@ -197,6 +221,20 @@ public class NotificationSettingsController : ControllerBase
         return Ok(new { success = true, message = result.Message });
     }
 
+    [HttpPost("test-whatsapp")]
+    [TenantScoped("tenantId")]
+    public async Task<ActionResult<object>> TestWhatsApp(Guid tenantId, TestWhatsAppRequest req)
+    {
+        if (string.IsNullOrWhiteSpace(req.TargetPhone))
+            return BadRequest("Target phone number is required.");
+
+        var result = await _notificationService.SendTestWhatsAppAsync(tenantId, req.TargetPhone);
+        if (!result.Success)
+            return BadRequest(new { success = false, message = result.Message });
+
+        return Ok(new { success = true, message = result.Message });
+    }
+
     private static NotificationSettingsResponse ToResponse(TenantNotificationSettings s)
     {
         return new NotificationSettingsResponse(
@@ -218,9 +256,16 @@ public class NotificationSettingsController : ControllerBase
             s.TwilioAccountSid,
             !string.IsNullOrWhiteSpace(s.TwilioAuthToken),
             s.TwilioFromNumber,
+            s.UseCustomWhatsApp,
+            s.WhatsAppProvider,
+            s.WhatsAppFromNumber,
             s.SendBookingConfirmationEmail,
             s.SendBookingConfirmationSms,
+            s.SendBookingConfirmationWhatsApp,
+            s.SendPaymentReceiptEmail,
+            s.SendPaymentReceiptWhatsApp,
             s.SendReminder24HoursBefore,
+            s.SendReminderWhatsApp,
             s.SendCancellationNotice,
             s.CustomEmailFooter,
             s.CustomDressCodePolicy,

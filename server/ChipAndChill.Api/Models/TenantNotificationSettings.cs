@@ -22,17 +22,27 @@ public class TenantNotificationSettings
     public string? SmtpPassword { get; set; }
     public string? ApiKey { get; set; }
 
-    // ── SMS Settings ────────────────────────────────────────────
+    // ── SMS & WhatsApp Settings ─────────────────────────────────
     public bool UseCustomSms { get; set; } = false;
     public string SmsProvider { get; set; } = "Twilio"; // "Twilio" | "AwsSns"
     public string? TwilioAccountSid { get; set; }
     public string? TwilioAuthToken { get; set; }
     public string? TwilioFromNumber { get; set; }
 
+    public bool UseCustomWhatsApp { get; set; } = false;
+    public string WhatsAppProvider { get; set; } = "TwilioWhatsApp"; // "TwilioWhatsApp" | "MetaCloudApi"
+    public string? WhatsAppFromNumber { get; set; }
+
     // ── Notification Toggles ────────────────────────────────────
     public bool SendBookingConfirmationEmail { get; set; } = true;
     public bool SendBookingConfirmationSms { get; set; } = false;
+    public bool SendBookingConfirmationWhatsApp { get; set; } = false;
+
+    public bool SendPaymentReceiptEmail { get; set; } = true;
+    public bool SendPaymentReceiptWhatsApp { get; set; } = false;
+
     public bool SendReminder24HoursBefore { get; set; } = true;
+    public bool SendReminderWhatsApp { get; set; } = false;
     public bool SendCancellationNotice { get; set; } = true;
 
     // ── Custom Message Notes & Policies ─────────────────────────
