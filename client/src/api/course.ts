@@ -55,6 +55,10 @@ export interface Tenant {
   amenities?: string | null;
   dressCode?: string | null;
   spikePolicy?: string | null;
+  greenFee?: number | null;
+  caddieFee?: number | null;
+  coachFee?: number | null;
+  holesCount?: number;
   holes?: CourseHole[];
 }
 

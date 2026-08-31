@@ -98,11 +98,24 @@ public class RoundsController : ControllerBase
         _db.Rounds.Add(round);
         await _db.SaveChangesAsync();
 
-        // WHS handicap differential: (Adjusted Gross Score − Course Rating) × 113 / Slope Rating.
+        // WHS handicap differential calculation:
+        // 18-hole: (Adjusted Gross Score − Course Rating) × 113 / Slope Rating.
+        // 9-hole:  ((9-hole Gross Score − 9-hole Course Rating) × 113 / Slope Rating) × 2.0 (scaled to 18-hole equivalent).
         var totalStrokes = round.Holes.Sum(h => h.Strokes);
         var totalPar = round.Holes.Sum(h => h.Par);
         if (totalPar > 0 && req.SlopeRating > 0)
-            round.HandicapDifferential = Math.Round((totalStrokes - req.CourseRating) * 113.0 / req.SlopeRating, 1);
+        {
+            if (round.Holes.Count <= 9)
+            {
+                var nineHoleRating = req.CourseRating > 50.0 ? req.CourseRating / 2.0 : req.CourseRating;
+                var nineHoleDiff = (totalStrokes - nineHoleRating) * 113.0 / req.SlopeRating;
+                round.HandicapDifferential = Math.Round(nineHoleDiff * 2.0, 1);
+            }
+            else
+            {
+                round.HandicapDifferential = Math.Round((totalStrokes - req.CourseRating) * 113.0 / req.SlopeRating, 1);
+            }
+        }
         await _db.SaveChangesAsync();
 
         return CreatedAtAction(nameof(GetById), new { id = round.Id }, new RoundResponse(
@@ -133,8 +146,13 @@ public class RoundsController : ControllerBase
         if (rounds.Count == 0)
             return Ok(new StatsResponse(null, null, null, 0, null, new List<TrendPoint>(), new List<HoleStat>(), 0));
 
+        // ---- Split rounds by type for separate stats ----
+        var rounds18 = rounds.Where(r => r.Holes.Count > 9).ToList();
+        var rounds9  = rounds.Where(r => r.Holes.Count <= 9).ToList();
+
         // ---- WHS Handicap Index: average of best differentials from last 20
         // (scaled down for fewer rounds), × 0.96, truncated to 1 decimal.
+        // 9-hole differentials are already stored pre-scaled to 18-hole equivalent.
         var differentials = rounds
             .Where(r => r.HandicapDifferential.HasValue && r.Holes.Count >= 9)
             .OrderByDescending(r => r.PlayedOn)
@@ -161,14 +179,31 @@ public class RoundsController : ControllerBase
             handicapIndex = Math.Floor(avgBest * 0.96 * 10) / 10;
         }
 
-        // ---- Score trends (chronological)
+        // ---- Scoring average: use 18-hole rounds for the primary average
+        //      to prevent 9-hole scores (~45 strokes) distorting the number.
+        double? averageScore = rounds18.Count > 0
+            ? Math.Round(rounds18.Average(r => (double)r.Holes.Sum(h => h.Strokes)), 1)
+            : (rounds9.Count > 0 ? Math.Round(rounds9.Average(r => (double)r.Holes.Sum(h => h.Strokes)), 1) : null);
+
+        // ---- Average vs par: use 18-hole rounds only for clean comparison ----
+        double? averageToPar = rounds18.Count > 0
+            ? Math.Round(rounds18.Average(r => (double)(r.Holes.Sum(h => h.Strokes) - r.Holes.Sum(h => h.Par))), 1)
+            : (rounds9.Count > 0 ? Math.Round(rounds9.Average(r => (double)(r.Holes.Sum(h => h.Strokes) - r.Holes.Sum(h => h.Par))), 1) : null);
+
+        // ---- Best round: compare by strokes-vs-par (not raw strokes), so
+        //      a 9-hole round (-1) doesn't beat an 18-hole round (+3). ----
+        var bestRound = rounds.OrderBy(r => r.Holes.Sum(h => h.Strokes) - r.Holes.Sum(h => h.Par)).First();
+
+        // ---- Score trends: tag each point with holeCount so the client
+        //      can render 9-hole and 18-hole rounds with different markers. ----
         var trend = rounds.Select(r => new TrendPoint(
             r.PlayedOn,
             r.Holes.Sum(h => h.Strokes),
             r.Holes.Sum(h => h.Par),
-            r.HandicapDifferential)).ToList();
+            r.HandicapDifferential,
+            r.Holes.Count)).ToList();
 
-        // ---- Hole performance across all rounds
+        // ---- Hole performance across all rounds (grouped by hole number) ----
         var holeStats = rounds
             .SelectMany(r => r.Holes)
             .GroupBy(h => h.HoleNumber)
@@ -185,18 +220,15 @@ public class RoundsController : ControllerBase
             })
             .ToList();
 
-        var scoresToPar = rounds.Select(r => r.Holes.Sum(h => h.Strokes) - r.Holes.Sum(h => h.Par)).ToList();
-        var bestRound = rounds.OrderBy(r => r.Holes.Sum(h => h.Strokes) - r.Holes.Sum(h => h.Par)).First();
-
         return Ok(new StatsResponse(
             handicapIndex,
-            Math.Round(rounds.Average(r => (double)r.Holes.Sum(h => h.Strokes)), 1),
-            Math.Round(scoresToPar.Average(), 1),
+            averageScore,
+            averageToPar,
             rounds.Count,
             new BestRoundInfo(bestRound.Id, bestRound.PlayedOn, bestRound.Holes.Sum(h => h.Strokes), bestRound.Holes.Sum(h => h.Par)),
             trend,
             holeStats,
-            rounds.Count(r => r.Holes.Count == 18)));
+            rounds18.Count));
     }
     private Guid? CurrentUserId()
     {

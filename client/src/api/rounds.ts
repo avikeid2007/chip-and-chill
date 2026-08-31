@@ -22,6 +22,8 @@ export interface TrendPoint {
   strokes: number;
   par: number;
   differential?: number | null;
+  /** Number of holes played. Used to distinguish 9-hole vs 18-hole rounds in charts. */
+  holeCount?: number;
 }
 
 export interface HoleStat {

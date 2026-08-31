@@ -48,7 +48,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  // Periodic silent background token refresh every 10 minutes (access token validity is 15 minutes)
+  // Periodic silent background token refresh every 10 minutes (access token validity is 15 minutes).
+  // BUG-06 FIX: Depend on !!user (boolean presence) rather than user?.token.
+  // Each successful refresh produces a new token string, so depending on user?.token was
+  // re-mounting the interval on every single refresh instead of once per login/logout.
   useEffect(() => {
     if (!user) return;
 
@@ -64,7 +67,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }, 10 * 60 * 1000); // 10 minutes
 
     return () => clearInterval(interval);
-  }, [user?.token]);
+  }, [!!user]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const login = (data: AuthResponse) => {
     setUser(data);

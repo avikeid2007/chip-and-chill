@@ -100,7 +100,11 @@ public class TenantsController : ControllerBase
             tenant.FairwaysGrass,
             tenant.Amenities,
             tenant.DressCode,
-            tenant.SpikePolicy));
+            tenant.SpikePolicy,
+            tenant.GreenFee,
+            tenant.CaddieFee,
+            tenant.CoachFee,
+            tenant.HolesCount));
     }
 
     [HttpGet("{id:guid}")]
@@ -270,6 +274,12 @@ public class TenantsController : ControllerBase
         if (updated.Amenities != null) tenant.Amenities = updated.Amenities;
         if (updated.DressCode != null) tenant.DressCode = updated.DressCode;
         if (updated.SpikePolicy != null) tenant.SpikePolicy = updated.SpikePolicy;
+
+        // Rates, Staff Fees & Holes Count
+        if (updated.GreenFee.HasValue) tenant.GreenFee = updated.GreenFee.Value;
+        if (updated.CaddieFee.HasValue) tenant.CaddieFee = updated.CaddieFee.Value;
+        if (updated.CoachFee.HasValue) tenant.CoachFee = updated.CoachFee.Value;
+        if (updated.HolesCount.HasValue) tenant.HolesCount = updated.HolesCount.Value;
 
         await _db.SaveChangesAsync();
         return NoContent();

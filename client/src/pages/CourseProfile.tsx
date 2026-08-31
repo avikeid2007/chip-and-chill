@@ -32,7 +32,10 @@ export default function CourseProfile() {
       .finally(() => setLoading(false));
   }, [id]);
 
-  const totalPar = holes.reduce((s, h) => s + h.par, 0) || 72;
+  const holesCount = (tenant?.holesCount === 9 || (holes.length > 0 && holes.length <= 9)) ? 9 : (holes.length > 0 ? holes.length : 18);
+  const isNineHole = holesCount <= 9;
+
+  const totalPar = holes.reduce((s, h) => s + h.par, 0) || (isNineHole ? 36 : 72);
   const totalWhiteYardage = holes.reduce((s, h) => s + (h.yardageWhite || 0), 0);
   const totalBlackYardage = holes.reduce((s, h) => s + (h.yardageBlack || h.yardageWhite || 0), 0);
   const totalBlueYardage = holes.reduce((s, h) => s + (h.yardageBlue || h.yardageWhite || 0), 0);
@@ -101,12 +104,10 @@ export default function CourseProfile() {
 
   return (
     <div className="min-h-screen bg-[#F7F9F6] text-gray-900 font-sans flex flex-col">
-      {/* Navigation */}
       <div className="bg-gradient-to-br from-fairway to-turf text-white">
         <NavBar />
       </div>
 
-      {/* Hero Header Banner */}
       <div className="relative bg-fairway text-white overflow-hidden">
         {tenant?.coverImageUrl ? (
           <div className="absolute inset-0 z-0">
@@ -118,53 +119,44 @@ export default function CourseProfile() {
             <div className="absolute inset-0 bg-gradient-to-t from-fairway via-fairway/80 to-transparent" />
           </div>
         ) : (
-          <div className="absolute inset-0 bg-[radial-gradient(#2E7D32_1px,transparent_1px)] [background-size:16px_16px] opacity-10" />
+          <div className="absolute inset-0 bg-[radial-gradient(#10B981_1px,transparent_1px)] opacity-10 [background-size:16px_16px]" />
         )}
 
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 pt-12 pb-10 relative z-10">
+        <div className="relative z-10 max-w-6xl mx-auto px-4 sm:px-6 pt-12 pb-8">
           <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
-            <div className="flex items-start gap-5">
+            <div className="flex items-start gap-4">
               {tenant?.logoUrl ? (
                 <img
                   src={tenant.logoUrl.startsWith("http") ? tenant.logoUrl : `${API_BASE}${tenant.logoUrl}`}
-                  alt={`${tenant.name} logo`}
-                  className="w-20 h-20 sm:w-24 sm:h-24 rounded-3xl object-contain bg-white/10 p-2 border-2 border-white/20 shadow-xl flex-shrink-0 backdrop-blur-sm"
+                  alt={tenant.name}
+                  className="w-20 h-20 sm:w-24 sm:h-24 rounded-3xl bg-white p-2 object-contain shadow-xl border border-white/20 flex-shrink-0"
                 />
               ) : (
-                <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-3xl bg-white/10 border-2 border-white/20 flex items-center justify-center text-4xl shadow-xl flex-shrink-0 backdrop-blur-sm">
+                <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-3xl bg-white/10 backdrop-blur-md flex items-center justify-center text-4xl shadow-xl border border-white/20 flex-shrink-0">
                   ⛳
                 </div>
               )}
 
               <div>
-                <div className="flex flex-wrap items-center gap-2 mb-2">
-                  <span className="px-3 py-0.5 rounded-full bg-gold/20 text-gold border border-gold/30 text-xs font-bold uppercase tracking-wider">
-                    {tenant?.courseType || "Championship Course"}
-                  </span>
-                  {tenant?.yearBuilt && (
-                    <span className="text-xs text-white/70 font-mono">Est. {tenant.yearBuilt}</span>
-                  )}
-                  {tenant?.architect && (
-                    <span className="text-xs text-white/70 font-medium">· Designed by {tenant.architect}</span>
-                  )}
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/10 backdrop-blur-sm border border-white/20 text-[10px] font-mono font-bold uppercase tracking-wider text-sand mb-2">
+                  <span>{tenant?.courseType || (isNineHole ? "Executive 9-Hole" : "Championship Links")}</span>
+                  {tenant?.yearBuilt && <span>• Est. {tenant.yearBuilt}</span>}
                 </div>
-
-                <h1 className="text-3xl sm:text-5xl font-black tracking-tight text-white mb-2">
+                <h1 className="text-3xl sm:text-5xl font-display font-black text-white tracking-tight">
                   {tenant?.name || "Golf Club"}
                 </h1>
-
-                <p className="text-sm text-white/80 max-w-2xl">
-                  {tenant?.description || "Premier 18-hole championship golf course and driving range facility."}
+                <p className="text-xs sm:text-sm text-white/80 max-w-2xl mt-1.5 line-clamp-2">
+                  {tenant?.description || "Championship golf layout with world-class course conditioning."}
                 </p>
-
-                <p className="text-xs text-white/60 mt-2 flex items-center gap-1.5">
-                  <span>📍</span> {tenant?.address || "Championship Links Drive"}
-                </p>
+                {tenant?.address && (
+                  <p className="text-xs text-sand font-semibold mt-1 flex items-center gap-1">
+                    <span>📍</span> {tenant.address}
+                  </p>
+                )}
               </div>
             </div>
 
-            {/* Quick Action CTAs */}
-            <div className="flex items-center gap-3 flex-wrap">
+            <div className="flex items-center gap-3 self-start md:self-auto">
               <Link
                 to={`/booking?tenantId=${id}`}
                 className="px-6 py-3.5 rounded-2xl bg-gold text-fairway font-extrabold text-sm hover:bg-gold/90 transition-all shadow-lg flex items-center gap-2"
@@ -180,11 +172,10 @@ export default function CourseProfile() {
             </div>
           </div>
 
-          {/* Quick Course Spec Ribbons */}
           <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-3 mt-8 pt-6 border-t border-white/15">
             <div className="bg-white/10 backdrop-blur-sm p-3 rounded-2xl border border-white/10 text-center">
               <span className="text-[10px] uppercase font-bold text-white/60 block">Holes</span>
-              <span className="text-xl font-black text-white font-mono">{holes.length > 0 ? holes.length : 18} Holes</span>
+              <span className="text-xl font-black text-white font-mono">{holesCount} Holes</span>
             </div>
             <div className="bg-white/10 backdrop-blur-sm p-3 rounded-2xl border border-white/10 text-center">
               <span className="text-[10px] uppercase font-bold text-white/60 block">Par</span>
@@ -197,7 +188,7 @@ export default function CourseProfile() {
             <div className="bg-white/10 backdrop-blur-sm p-3 rounded-2xl border border-white/10 text-center">
               <span className="text-[10px] uppercase font-bold text-white/60 block">Rating / Slope</span>
               <span className="text-xl font-black text-gold font-mono">
-                {tenant?.courseRating ? tenant.courseRating.toFixed(1) : "72.4"} / {tenant?.slopeRating || 132}
+                {tenant?.courseRating ? tenant.courseRating.toFixed(1) : (isNineHole ? "36.0" : "72.4")} / {tenant?.slopeRating || 113}
               </span>
             </div>
             <div className="bg-white/10 backdrop-blur-sm p-3 rounded-2xl border border-white/10 text-center">
@@ -212,9 +203,7 @@ export default function CourseProfile() {
         </div>
       </div>
 
-      {/* Main Content Body */}
       <main className="max-w-6xl mx-auto px-4 sm:px-6 py-8 w-full flex-1 space-y-8">
-        {/* Live Weather & Wind Conditions Card */}
         {weather && (
           <div className="bg-white rounded-3xl border border-sand-dark p-6 shadow-sm flex flex-col md:flex-row items-center justify-between gap-6">
             <div className="flex items-center gap-4 w-full md:w-auto">
@@ -252,12 +241,11 @@ export default function CourseProfile() {
           </div>
         )}
 
-        {/* Tab Navigation */}
         <div className="flex items-center gap-2 border-b border-gray-200 pb-3 overflow-x-auto">
           {[
             { key: "overview", label: "🏛️ Overview & Amenities" },
-            { key: "scorecard", label: "📊 18-Hole Scorecard Matrix" },
-            { key: "holes", label: "🗺️ Hole-by-Hole Flyover & Tips" },
+            { key: "scorecard", label: `📊 ${holesCount}-Hole Scorecard Matrix` },
+            { key: "holes", label: `🗺️ Hole-by-Hole Flyover & Tips (${holesCount}H)` },
           ].map((t) => (
             <button
               key={t.key}
@@ -273,18 +261,16 @@ export default function CourseProfile() {
           ))}
         </div>
 
-        {/* Tab 1: Overview & Amenities */}
         {tab === "overview" && (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             <div className="md:col-span-2 space-y-6">
-              {/* Club Architecture Card */}
               <div className="bg-white rounded-3xl border border-sand-dark p-6 sm:p-8 shadow-sm space-y-4">
                 <h3 className="text-lg font-bold text-fairway pb-3 border-b border-gray-100">
-                  About the Championship Course
+                  About the {isNineHole ? "Executive 9-Hole" : "Championship"} Course
                 </h3>
                 <p className="text-xs sm:text-sm text-gray-600 leading-relaxed">
                   {tenant?.description ||
-                    "Designed to challenge players of all skill levels while providing magnificent panoramic views across fairways and greens. Featuring strategic bunkers, pristine water hazards, and lightning-fast greens."}
+                    "Designed to challenge players of all skill levels while providing magnificent panoramic views across fairways and greens. Featuring strategic bunkers, pristine water hazards, and pristine greens."}
                 </p>
 
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-2">
@@ -298,12 +284,11 @@ export default function CourseProfile() {
                   </div>
                   <div className="p-3 rounded-2xl bg-gray-50 border border-gray-200/80">
                     <span className="text-[10px] font-bold uppercase text-gray-400 block">Layout Style</span>
-                    <span className="text-xs font-bold text-gray-900">{tenant?.courseType || "Championship"}</span>
+                    <span className="text-xs font-bold text-gray-900">{tenant?.courseType || (isNineHole ? "Executive / Range" : "Championship")}</span>
                   </div>
                 </div>
               </div>
 
-              {/* Amenities Grid */}
               <div className="bg-white rounded-3xl border border-sand-dark p-6 sm:p-8 shadow-sm space-y-4">
                 <h3 className="text-lg font-bold text-fairway pb-3 border-b border-gray-100">
                   Clubhouse Amenities & Facilities
@@ -321,7 +306,6 @@ export default function CourseProfile() {
                 </div>
               </div>
 
-              {/* Policies */}
               <div className="bg-white rounded-3xl border border-sand-dark p-6 sm:p-8 shadow-sm space-y-4">
                 <h3 className="text-lg font-bold text-fairway pb-3 border-b border-gray-100">
                   Course Policies & Dress Code
@@ -337,13 +321,12 @@ export default function CourseProfile() {
                   </div>
                   <div className="flex items-start gap-2">
                     <span className="font-bold text-fairway min-w-[90px]">⏱️ Pace of Play:</span>
-                    <span>Target pace of 4 hours and 15 minutes for 18 holes.</span>
+                    <span>Target pace of {isNineHole ? "2 hours and 10 minutes for 9 holes" : "4 hours and 15 minutes for 18 holes"}.</span>
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* Sidebar Contact & Booking Box */}
             <div className="space-y-6">
               <div className="bg-white rounded-3xl border-2 border-fairway p-6 sm:p-8 shadow-lg space-y-6">
                 <div>
@@ -353,6 +336,38 @@ export default function CourseProfile() {
                     Book online tee times or driving range bays with instant confirmation.
                   </p>
                 </div>
+
+                {(tenant?.greenFee != null || tenant?.caddieFee != null || tenant?.coachFee != null) && (
+                  <div className="p-4 rounded-2xl bg-[#F8FAF7] border border-gray-200/80 space-y-2.5">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-turf block">
+                      Published Rates &amp; Staff Fees
+                    </span>
+                    {tenant?.greenFee != null && (
+                      <div className="flex justify-between text-xs">
+                        <span className="text-gray-600">Green Fee:</span>
+                        <span className="font-mono font-bold text-fairway">
+                          {tenant.currencySymbol || "₹"}{tenant.greenFee.toLocaleString()}
+                        </span>
+                      </div>
+                    )}
+                    {tenant?.caddieFee != null && (
+                      <div className="flex justify-between text-xs">
+                        <span className="text-gray-600">Caddie Service:</span>
+                        <span className="font-mono font-bold text-fairway">
+                          {tenant.currencySymbol || "₹"}{tenant.caddieFee.toLocaleString()}
+                        </span>
+                      </div>
+                    )}
+                    {tenant?.coachFee != null && (
+                      <div className="flex justify-between text-xs">
+                        <span className="text-gray-600">PGA Coach / Lesson:</span>
+                        <span className="font-mono font-bold text-fairway">
+                          {tenant.currencySymbol || "₹"}{tenant.coachFee.toLocaleString()}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 <div className="space-y-2">
                   <Link
@@ -398,24 +413,24 @@ export default function CourseProfile() {
           </div>
         )}
 
-        {/* Tab 2: 18-Hole Scorecard Matrix */}
         {tab === "scorecard" && (
           <div className="bg-white rounded-3xl border border-sand-dark p-6 sm:p-8 shadow-sm space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-gray-100">
               <div>
-                <h3 className="text-lg font-bold text-fairway">18-Hole Championship Scorecard</h3>
+                <h3 className="text-lg font-bold text-fairway">
+                  {isNineHole ? "9-Hole Executive Scorecard" : "18-Hole Championship Scorecard"}
+                </h3>
                 <p className="text-xs text-gray-500">Official stroke index, pars, and full tee yardages.</p>
               </div>
 
-              {/* Tee Box Selector */}
               <div className="flex items-center gap-1.5 overflow-x-auto">
                 <span className="text-xs font-bold text-gray-400 uppercase mr-1">Tee:</span>
                 {[
-                  { key: "black", label: "⚫ Black (Championship)", yds: totalBlackYardage },
-                  { key: "blue", label: "🔵 Blue (Tournament)", yds: totalBlueYardage },
-                  { key: "white", label: "⚪ White (Member)", yds: totalWhiteYardage },
-                  { key: "gold", label: "🟡 Gold (Senior)", yds: totalGoldYardage },
-                  { key: "red", label: "🔴 Red (Forward)", yds: totalRedYardage },
+                  { key: "black", label: "⚫ Black", yds: totalBlackYardage },
+                  { key: "blue", label: "🔵 Blue", yds: totalBlueYardage },
+                  { key: "white", label: "⚪ White", yds: totalWhiteYardage },
+                  { key: "gold", label: "🟡 Gold", yds: totalGoldYardage },
+                  { key: "red", label: "🔴 Red", yds: totalRedYardage },
                 ].map((tee) => (
                   <button
                     key={tee.key}
@@ -433,30 +448,28 @@ export default function CourseProfile() {
               </div>
             </div>
 
-            {/* Scorecard Table */}
             <div className="overflow-x-auto">
               <table className="w-full text-center text-xs border-collapse">
                 <thead>
                   <tr className="bg-fairway text-white text-[11px] font-bold">
                     <th className="py-2.5 px-3 text-left rounded-l-xl">Hole</th>
-                    {Array.from({ length: 9 }).map((_, i) => (
+                    {Array.from({ length: Math.min(9, holesCount) }).map((_, i) => (
                       <th key={i + 1} className="py-2.5 px-2 font-mono">{i + 1}</th>
                     ))}
-                    <th className="py-2.5 px-3 bg-fairway/80 font-mono">OUT</th>
-                    {Array.from({ length: 9 }).map((_, i) => (
+                    {!isNineHole && <th className="py-2.5 px-3 bg-fairway/80 font-mono">OUT</th>}
+                    {!isNineHole && Array.from({ length: 9 }).map((_, i) => (
                       <th key={i + 10} className="py-2.5 px-2 font-mono">{i + 10}</th>
                     ))}
-                    <th className="py-2.5 px-3 bg-fairway/80 font-mono">IN</th>
+                    {!isNineHole && <th className="py-2.5 px-3 bg-fairway/80 font-mono">IN</th>}
                     <th className="py-2.5 px-3 bg-gold text-fairway font-black rounded-r-xl font-mono">TOT</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {/* Yardage Row */}
                   <tr className="bg-[#FAFBF9] font-mono font-bold text-gray-800">
                     <td className="py-3 px-3 text-left font-bold uppercase text-[10px] text-gray-500">
                       {selectedTee.toUpperCase()} (YDS)
                     </td>
-                    {Array.from({ length: 9 }).map((_, i) => {
+                    {Array.from({ length: Math.min(9, holesCount) }).map((_, i) => {
                       const h = holes.find((x) => x.holeNumber === i + 1);
                       const yds = selectedTee === "black" ? (h?.yardageBlack || h?.yardageWhite || 410)
                         : selectedTee === "blue" ? (h?.yardageBlue || h?.yardageWhite || 395)
@@ -465,10 +478,12 @@ export default function CourseProfile() {
                         : (h?.yardageWhite || 380);
                       return <td key={i + 1} className="py-3 px-2">{yds}</td>;
                     })}
-                    <td className="py-3 px-3 bg-gray-100 font-black">
-                      {holes.slice(0, 9).reduce((s, h) => s + (selectedTee === "black" ? (h.yardageBlack || h.yardageWhite) : h.yardageWhite), 0) || Math.round(currentYardage / 2)}
-                    </td>
-                    {Array.from({ length: 9 }).map((_, i) => {
+                    {!isNineHole && (
+                      <td className="py-3 px-3 bg-gray-100 font-black">
+                        {holes.slice(0, 9).reduce((s, h) => s + (selectedTee === "black" ? (h.yardageBlack || h.yardageWhite) : h.yardageWhite), 0) || Math.round(currentYardage / 2)}
+                      </td>
+                    )}
+                    {!isNineHole && Array.from({ length: 9 }).map((_, i) => {
                       const h = holes.find((x) => x.holeNumber === i + 10);
                       const yds = selectedTee === "black" ? (h?.yardageBlack || h?.yardageWhite || 415)
                         : selectedTee === "blue" ? (h?.yardageBlue || h?.yardageWhite || 390)
@@ -477,47 +492,51 @@ export default function CourseProfile() {
                         : (h?.yardageWhite || 385);
                       return <td key={i + 10} className="py-3 px-2">{yds}</td>;
                     })}
-                    <td className="py-3 px-3 bg-gray-100 font-black">
-                      {holes.slice(9, 18).reduce((s, h) => s + (selectedTee === "black" ? (h.yardageBlack || h.yardageWhite) : h.yardageWhite), 0) || Math.round(currentYardage / 2)}
-                    </td>
+                    {!isNineHole && (
+                      <td className="py-3 px-3 bg-gray-100 font-black">
+                        {holes.slice(9, 18).reduce((s, h) => s + (selectedTee === "black" ? (h.yardageBlack || h.yardageWhite) : h.yardageWhite), 0) || Math.round(currentYardage / 2)}
+                      </td>
+                    )}
                     <td className="py-3 px-3 bg-gold/20 font-black text-fairway font-mono">
-                      {currentYardage > 0 ? currentYardage.toLocaleString() : "7,050"}
+                      {currentYardage > 0 ? currentYardage.toLocaleString() : (isNineHole ? "3,420" : "7,050")}
                     </td>
                   </tr>
 
-                  {/* Par Row */}
                   <tr className="font-mono font-bold text-gray-900">
                     <td className="py-3 px-3 text-left font-bold uppercase text-[10px] text-gray-500">PAR</td>
-                    {Array.from({ length: 9 }).map((_, i) => {
+                    {Array.from({ length: Math.min(9, holesCount) }).map((_, i) => {
                       const h = holes.find((x) => x.holeNumber === i + 1);
                       return <td key={i + 1} className="py-3 px-2 text-turf">{h?.par || 4}</td>;
                     })}
-                    <td className="py-3 px-3 bg-gray-100 font-black text-turf">
-                      {holes.slice(0, 9).reduce((s, h) => s + h.par, 0) || 36}
-                    </td>
-                    {Array.from({ length: 9 }).map((_, i) => {
+                    {!isNineHole && (
+                      <td className="py-3 px-3 bg-gray-100 font-black text-turf">
+                        {holes.slice(0, 9).reduce((s, h) => s + h.par, 0) || 36}
+                      </td>
+                    )}
+                    {!isNineHole && Array.from({ length: 9 }).map((_, i) => {
                       const h = holes.find((x) => x.holeNumber === i + 10);
                       return <td key={i + 10} className="py-3 px-2 text-turf">{h?.par || 4}</td>;
                     })}
-                    <td className="py-3 px-3 bg-gray-100 font-black text-turf">
-                      {holes.slice(9, 18).reduce((s, h) => s + h.par, 0) || 36}
-                    </td>
+                    {!isNineHole && (
+                      <td className="py-3 px-3 bg-gray-100 font-black text-turf">
+                        {holes.slice(9, 18).reduce((s, h) => s + h.par, 0) || 36}
+                      </td>
+                    )}
                     <td className="py-3 px-3 bg-gold/20 font-black text-fairway">{totalPar}</td>
                   </tr>
 
-                  {/* Stroke Index / Handicap Row */}
                   <tr className="bg-[#FAFBF9] font-mono text-gray-500 text-[11px]">
                     <td className="py-2.5 px-3 text-left font-bold uppercase text-[10px] text-gray-400">STROKE INDEX</td>
-                    {Array.from({ length: 9 }).map((_, i) => {
+                    {Array.from({ length: Math.min(9, holesCount) }).map((_, i) => {
                       const h = holes.find((x) => x.holeNumber === i + 1);
-                      return <td key={i + 1} className="py-2.5 px-2">{h?.handicapIndex || (i * 2 + 1)}</td>;
+                      return <td key={i + 1} className="py-2.5 px-2">{h?.handicapIndex || (i + 1)}</td>;
                     })}
-                    <td className="py-2.5 px-3 bg-gray-100 font-bold">—</td>
-                    {Array.from({ length: 9 }).map((_, i) => {
+                    {!isNineHole && <td className="py-2.5 px-3 bg-gray-100 font-bold">—</td>}
+                    {!isNineHole && Array.from({ length: 9 }).map((_, i) => {
                       const h = holes.find((x) => x.holeNumber === i + 10);
                       return <td key={i + 10} className="py-2.5 px-2">{h?.handicapIndex || (i * 2 + 2)}</td>;
                     })}
-                    <td className="py-2.5 px-3 bg-gray-100 font-bold">—</td>
+                    {!isNineHole && <td className="py-2.5 px-3 bg-gray-100 font-bold">—</td>}
                     <td className="py-2.5 px-3 bg-gold/20 font-bold">—</td>
                   </tr>
                 </tbody>
@@ -526,12 +545,10 @@ export default function CourseProfile() {
           </div>
         )}
 
-        {/* Tab 3: Hole-by-Hole Flyover & Tips */}
         {tab === "holes" && (
           <div className="space-y-6">
-            {/* 1-18 Hole Strip */}
-            <div className="grid grid-cols-6 sm:grid-cols-9 md:grid-cols-18 gap-1.5">
-              {Array.from({ length: 18 }).map((_, i) => {
+            <div className={`grid gap-1.5 ${isNineHole ? "grid-cols-9" : "grid-cols-6 sm:grid-cols-9 md:grid-cols-18"}`}>
+              {Array.from({ length: holesCount }).map((_, i) => {
                 const num = i + 1;
                 const isSelected = selectedHoleNum === num;
                 return (
@@ -551,7 +568,6 @@ export default function CourseProfile() {
               })}
             </div>
 
-            {/* Selected Hole Details Card */}
             <div className="bg-white rounded-3xl border border-sand-dark p-6 sm:p-8 shadow-sm space-y-6 animate-fadeIn">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-gray-100">
                 <div className="flex items-center gap-3">
@@ -564,7 +580,6 @@ export default function CourseProfile() {
                   </div>
                 </div>
 
-                {/* 5 Tee Yardages Box */}
                 <div className="flex items-center gap-2 flex-wrap">
                   <div className="px-3 py-1.5 rounded-xl bg-gray-900 text-white text-xs font-bold font-mono">
                     ⚫ {currentHole.yardageBlack || currentHole.yardageWhite + 30} yds
@@ -584,7 +599,6 @@ export default function CourseProfile() {
                 </div>
               </div>
 
-              {/* Hole Strategy & Pro Tips */}
               <div className="p-5 rounded-2xl bg-[#F8FAF7] border border-gray-200/80 space-y-2">
                 <span className="text-xs font-bold uppercase tracking-wider text-turf flex items-center gap-1">
                   <span>💡</span> Head Pro Strategy & Layout Tip
@@ -595,7 +609,6 @@ export default function CourseProfile() {
                 </p>
               </div>
 
-              {/* Prev / Next Hole Navigation */}
               <div className="flex items-center justify-between pt-2">
                 <button
                   type="button"
@@ -607,11 +620,11 @@ export default function CourseProfile() {
                 </button>
                 <button
                   type="button"
-                  disabled={selectedHoleNum === 18}
-                  onClick={() => setSelectedHoleNum((prev) => Math.min(18, prev + 1))}
+                  disabled={selectedHoleNum === holesCount}
+                  onClick={() => setSelectedHoleNum((prev) => Math.min(holesCount, prev + 1))}
                   className="px-4 py-2 rounded-xl bg-fairway text-white text-xs font-bold hover:bg-fairway/90 disabled:opacity-30 disabled:cursor-not-allowed"
                 >
-                  Next Hole ({selectedHoleNum < 18 ? selectedHoleNum + 1 : ""}) →
+                  Next Hole ({selectedHoleNum < holesCount ? selectedHoleNum + 1 : ""}) →
                 </button>
               </div>
             </div>

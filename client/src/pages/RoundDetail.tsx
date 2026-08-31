@@ -102,8 +102,12 @@ export default function RoundDetail() {
   const totalPar = holes.reduce((s, h) => s + h.par, 0);
   const toPar = totalStrokes - totalPar;
 
-  const front9 = holes.slice(0, 9);
-  const back9 = holes.slice(9, 18);
+  const isNineHoles = holes.length <= 9;
+  const isBackNineOnly = isNineHoles && holes.some((h) => h.holeNumber > 9);
+
+  const front9 = isNineHoles && isBackNineOnly ? [] : holes.filter((h) => h.holeNumber <= 9 || isNineHoles);
+  const back9 = isNineHoles && isBackNineOnly ? holes : holes.filter((h) => h.holeNumber > 9);
+
   const frontPar = front9.reduce((s, h) => s + h.par, 0);
   const frontStrokes = front9.reduce((s, h) => s + h.strokes, 0);
   const backPar = back9.reduce((s, h) => s + h.par, 0);
@@ -178,7 +182,7 @@ export default function RoundDetail() {
             <div>
               <div className="flex items-center gap-2 flex-wrap mb-2">
                 <span className="px-3 py-1 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-100 text-[11px] font-bold uppercase tracking-wider">
-                  ⛳ {holes.length}-Hole Round
+                  ⛳ {isNineHoles ? (isBackNineOnly ? "9-Hole Round (Back 9)" : "9-Hole Round (Front 9)") : "18-Hole Championship Round"}
                 </span>
                 <span className="px-3 py-1 rounded-full bg-gray-100 text-gray-700 text-[11px] font-bold">
                   {round.teeBox} Tees
@@ -222,15 +226,27 @@ export default function RoundDetail() {
         {/* ── KPI HIGHLIGHTS BAR ───────────────────────────────────────────── */}
         <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-3 mb-8">
           <div className="bg-white rounded-2xl border border-[#E4E8E3] p-4 text-center shadow-sm">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400 block">Front 9 (OUT)</span>
-            <span className="text-2xl font-black text-gray-900 font-mono block mt-1">{frontStrokes}</span>
-            <span className="text-[10px] text-gray-400 font-mono">Par {frontPar}</span>
+            <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400 block">
+              {isNineHoles && isBackNineOnly ? "Back 9 (IN)" : "Front 9 (OUT)"}
+            </span>
+            <span className="text-2xl font-black text-gray-900 font-mono block mt-1">
+              {isNineHoles && isBackNineOnly ? backStrokes : frontStrokes}
+            </span>
+            <span className="text-[10px] text-gray-400 font-mono">
+              Par {isNineHoles && isBackNineOnly ? backPar : frontPar}
+            </span>
           </div>
 
           <div className="bg-white rounded-2xl border border-[#E4E8E3] p-4 text-center shadow-sm">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400 block">Back 9 (IN)</span>
-            <span className="text-2xl font-black text-gray-900 font-mono block mt-1">{back9.length > 0 ? backStrokes : "—"}</span>
-            <span className="text-[10px] text-gray-400 font-mono">{back9.length > 0 ? `Par ${backPar}` : "N/A"}</span>
+            <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400 block">
+              {isNineHoles ? "Round Length" : "Back 9 (IN)"}
+            </span>
+            <span className="text-2xl font-black text-gray-900 font-mono block mt-1">
+              {isNineHoles ? "9 Holes" : backStrokes}
+            </span>
+            <span className="text-[10px] text-gray-400 font-mono">
+              {isNineHoles ? `Total Par ${totalPar}` : `Par ${backPar}`}
+            </span>
           </div>
 
           <div className="bg-white rounded-2xl border border-[#E4E8E3] p-4 text-center shadow-sm">
@@ -258,85 +274,120 @@ export default function RoundDetail() {
           </div>
         </div>
 
-        {/* ── CHAMPIONSHIP 18-HOLE SCORECARD MATRIX ────────────────────────── */}
+        {/* ── CHAMPIONSHIP SCORECARD MATRIX ────────────────────────────────── */}
         <div className="bg-white rounded-3xl border border-[#E4E8E3] shadow-sm overflow-hidden mb-8">
           <div className="bg-gradient-to-r from-[#0B3024] to-[#1B4332] text-white px-6 py-4 flex items-center justify-between">
-            <h2 className="text-sm font-bold uppercase tracking-wider">Official Tournament Scorecard</h2>
+            <h2 className="text-sm font-bold uppercase tracking-wider">Official Scorecard</h2>
             <span className="text-xs font-mono text-sand">
-              {holes.length === 18 ? "18-Hole Championship Matrix" : "9-Hole Matrix"}
+              {holes.length === 18
+                ? "18-Hole Championship Matrix"
+                : isBackNineOnly
+                ? "9-Hole Matrix (Back 9 · Holes 10–18)"
+                : "9-Hole Matrix (Front 9 · Holes 1–9)"}
             </span>
           </div>
 
-          {/* FRONT 9 TABLE */}
-          <div className="overflow-x-auto border-b border-gray-200">
-            <div className="px-4 py-2 bg-gray-50 text-[11px] font-bold uppercase tracking-wider text-gray-500 border-b border-gray-200">
-              Front 9 (OUT)
-            </div>
-            <table className="w-full text-xs font-mono text-center border-collapse">
-              <thead>
-                <tr className="bg-[#FAFBF9] border-b border-gray-200 text-gray-500 text-[11px] font-sans">
-                  <th className="py-2.5 px-3 text-left font-bold w-24 sticky left-0 bg-[#FAFBF9] z-10">HOLE</th>
-                  {front9.map((h) => (
-                    <th key={h.holeNumber} className="py-2.5 px-2 font-bold text-fairway min-w-[38px]">
-                      {h.holeNumber}
+          {/* FIRST TABLE: FRONT 9 (OR ALL 9 HOLES IF 9-HOLE ROUND) */}
+          {(front9.length > 0 || (isNineHoles && isBackNineOnly)) && (
+            <div className="overflow-x-auto border-b border-gray-200">
+              <div className="px-4 py-2 bg-gray-50 text-[11px] font-bold uppercase tracking-wider text-gray-500 border-b border-gray-200">
+                {isNineHoles ? (isBackNineOnly ? "Back 9 (IN)" : "Front 9 (OUT)") : "Front 9 (OUT)"}
+              </div>
+              <table className="w-full text-xs font-mono text-center border-collapse">
+                <thead>
+                  <tr className="bg-[#FAFBF9] border-b border-gray-200 text-gray-500 text-[11px] font-sans">
+                    <th className="py-2.5 px-3 text-left font-bold w-24 sticky left-0 bg-[#FAFBF9] z-10">HOLE</th>
+                    {(front9.length > 0 ? front9 : back9).map((h) => (
+                      <th key={h.holeNumber} className="py-2.5 px-2 font-bold text-fairway min-w-[38px]">
+                        {h.holeNumber}
+                      </th>
+                    ))}
+                    <th className="py-2.5 px-3 font-black bg-gray-100 text-gray-900 min-w-[50px]">
+                      {isNineHoles ? (isBackNineOnly ? "IN" : "OUT") : "OUT"}
                     </th>
-                  ))}
-                  <th className="py-2.5 px-3 font-black bg-gray-100 text-gray-900 min-w-[50px]">OUT</th>
-                </tr>
-              </thead>
-              <tbody>
-                {/* Yardage Row (if available) */}
-                {courseHoles.length >= 9 && (
-                  <tr className="border-b border-gray-100 text-gray-400 text-[10px]">
-                    <td className="py-2 px-3 text-left font-sans font-semibold sticky left-0 bg-white z-10 text-gray-400">
-                      YDS
+                    {isNineHoles && (
+                      <th className="py-2.5 px-4 font-black bg-fairway text-white min-w-[65px]">TOTAL</th>
+                    )}
+                  </tr>
+                </thead>
+                <tbody>
+                  {/* Yardage Row (if available) */}
+                  {courseHoles.length > 0 && (
+                    <tr className="border-b border-gray-100 text-gray-400 text-[10px]">
+                      <td className="py-2 px-3 text-left font-sans font-semibold sticky left-0 bg-white z-10 text-gray-400">
+                        YDS
+                      </td>
+                      {(front9.length > 0 ? front9 : back9).map((h) => {
+                        const ch = courseHoles.find((x) => x.holeNumber === h.holeNumber);
+                        return (
+                          <td key={h.holeNumber} className="py-2 px-2">
+                            {ch?.yardageWhite || "—"}
+                          </td>
+                        );
+                      })}
+                      <td className="py-2 px-3 font-bold bg-gray-50 text-gray-500">
+                        {(front9.length > 0 ? front9 : back9).reduce((s, h) => {
+                          const ch = courseHoles.find((x) => x.holeNumber === h.holeNumber);
+                          return s + (ch?.yardageWhite || 0);
+                        }, 0)}
+                      </td>
+                      {isNineHoles && (
+                        <td className="py-2 px-4 font-bold bg-gray-100 text-gray-800">
+                          {(front9.length > 0 ? front9 : back9).reduce((s, h) => {
+                            const ch = courseHoles.find((x) => x.holeNumber === h.holeNumber);
+                            return s + (ch?.yardageWhite || 0);
+                          }, 0)}
+                        </td>
+                      )}
+                    </tr>
+                  )}
+
+                  {/* Par Row */}
+                  <tr className="border-b border-gray-100 text-gray-500">
+                    <td className="py-2.5 px-3 text-left font-sans font-bold sticky left-0 bg-white z-10 text-gray-500">
+                      PAR
                     </td>
-                    {front9.map((h, i) => (
-                      <td key={h.holeNumber} className="py-2 px-2">
-                        {courseHoles[i]?.yardageWhite || "—"}
+                    {(front9.length > 0 ? front9 : back9).map((h) => (
+                      <td key={h.holeNumber} className="py-2.5 px-2 font-semibold">
+                        {h.par}
                       </td>
                     ))}
-                    <td className="py-2 px-3 font-bold bg-gray-50 text-gray-500">
-                      {front9.reduce((s, _, i) => s + (courseHoles[i]?.yardageWhite || 0), 0)}
+                    <td className="py-2.5 px-3 font-bold bg-gray-50 text-fairway">
+                      {isNineHoles && isBackNineOnly ? backPar : frontPar}
                     </td>
+                    {isNineHoles && (
+                      <td className="py-2.5 px-4 font-black bg-gray-100 text-fairway">{totalPar}</td>
+                    )}
                   </tr>
-                )}
 
-                {/* Par Row */}
-                <tr className="border-b border-gray-100 text-gray-500">
-                  <td className="py-2.5 px-3 text-left font-sans font-bold sticky left-0 bg-white z-10 text-gray-500">
-                    PAR
-                  </td>
-                  {front9.map((h) => (
-                    <td key={h.holeNumber} className="py-2.5 px-2 font-semibold">
-                      {h.par}
+                  {/* Score Row */}
+                  <tr className="border-b border-gray-100">
+                    <td className="py-3 px-3 text-left font-sans font-bold sticky left-0 bg-white z-10 text-gray-900">
+                      SCORE
                     </td>
-                  ))}
-                  <td className="py-2.5 px-3 font-bold bg-gray-50 text-fairway">{frontPar}</td>
-                </tr>
-
-                {/* Score Row */}
-                <tr className="border-b border-gray-100">
-                  <td className="py-3 px-3 text-left font-sans font-bold sticky left-0 bg-white z-10 text-gray-900">
-                    SCORE
-                  </td>
-                  {front9.map((h) => (
-                    <td key={h.holeNumber} className="py-2 px-1">
-                      <span className={`inline-flex items-center justify-center w-8 h-8 ${scoreBadgeClass(h.strokes, h.par)}`}>
-                        {h.strokes}
-                      </span>
+                    {(front9.length > 0 ? front9 : back9).map((h) => (
+                      <td key={h.holeNumber} className="py-2 px-1">
+                        <span className={`inline-flex items-center justify-center w-8 h-8 ${scoreBadgeClass(h.strokes, h.par)}`}>
+                          {h.strokes}
+                        </span>
+                      </td>
+                    ))}
+                    <td className="py-3 px-3 font-black text-sm bg-emerald-50 text-emerald-950 font-mono">
+                      {isNineHoles && isBackNineOnly ? backStrokes : frontStrokes}
                     </td>
-                  ))}
-                  <td className="py-3 px-3 font-black text-sm bg-emerald-50 text-emerald-950 font-mono">
-                    {frontStrokes}
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
+                    {isNineHoles && (
+                      <td className="py-3 px-4 font-black text-base bg-emerald-600 text-white font-mono shadow-inner">
+                        {totalStrokes}
+                      </td>
+                    )}
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          )}
 
-          {/* BACK 9 TABLE (If 18 Holes) */}
-          {back9.length > 0 && (
+          {/* SECOND TABLE: BACK 9 (ONLY IF 18 HOLES) */}
+          {!isNineHoles && back9.length > 0 && (
             <div className="overflow-x-auto">
               <div className="px-4 py-2 bg-gray-50 text-[11px] font-bold uppercase tracking-wider text-gray-500 border-b border-gray-200">
                 Back 9 (IN)

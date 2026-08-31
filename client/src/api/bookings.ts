@@ -17,6 +17,11 @@ export const bookingsApi = {
   mine: (tenantId: string, token: string) =>
     apiFetch<Booking[]>(`/api/tenants/${tenantId}/bookings/mine`, {}, token, tenantId),
 
+  // BUG-05 FIX: Single global endpoint that returns ALL bookings for the user across
+  // all tenants — avoids the N-API-calls-per-tenant pattern in MyBookings.
+  mineAll: (token: string) =>
+    apiFetch<(Booking & { startTime: string; price: number })[]>("/api/bookings/mine", {}, token),
+
   create: (tenantId: string, token: string, data: { teeSlotId: string; partySize: number }) =>
     apiFetch<Booking>(`/api/tenants/${tenantId}/bookings`, {
       method: "POST",

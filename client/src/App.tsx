@@ -55,6 +55,55 @@ function RequireSuperAdmin({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+/** BUG-16 FIX: Guards any route that requires the user to be logged in.
+ *  Unauthenticated users are redirected to /login with a `redirect` param so
+ *  they land back on the page they wanted after signing in. */
+function RequireAuth({ children }: { children: React.ReactNode }) {
+  const { user, isLoading } = useAuth();
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-fairway flex items-center justify-center text-white/80 font-mono text-sm">
+        Authenticating...
+      </div>
+    );
+  }
+  if (!user) return <Navigate to={`/login?redirect=${encodeURIComponent(window.location.pathname)}`} replace />;
+  return <>{children}</>;
+}
+
+/** Guards routes that require a CourseAdmin, Staff or SuperAdmin role. */
+function RequireCourseAdmin({ children }: { children: React.ReactNode }) {
+  const { user, isLoading } = useAuth();
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-fairway flex items-center justify-center text-white/80 font-mono text-sm">
+        Authenticating...
+      </div>
+    );
+  }
+  if (!user) return <Navigate to={`/login?redirect=${encodeURIComponent(window.location.pathname)}`} replace />;
+  if (user.role === "Golfer") return <Navigate to="/" replace />;
+  return <>{children}</>;
+}
+
+/** Guards routes that are Owner-only (CourseAdmin / SuperAdmin).
+ *  Staff users are redirected to /dashboard instead of seeing a blank or broken page. */
+function RequireOwner({ children }: { children: React.ReactNode }) {
+  const { user, isLoading } = useAuth();
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-fairway flex items-center justify-center text-white/80 font-mono text-sm">
+        Authenticating...
+      </div>
+    );
+  }
+  if (!user) return <Navigate to={`/login?redirect=${encodeURIComponent(window.location.pathname)}`} replace />;
+  if (user.role === "Golfer") return <Navigate to="/" replace />;
+  // Staff can use the dashboard but not owner-only management pages
+  if (user.role === "Staff") return <Navigate to="/dashboard" replace />;
+  return <>{children}</>;
+}
+
 export default function App() {
   return (
     <AuthProvider>
@@ -88,19 +137,20 @@ export default function App() {
           <Route path="/stats" element={<StatsDashboard />} />
 
           {/* Admin */}
-          <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/dashboard/tee-sheet" element={<TeeSheetManager />} />
-          <Route path="/dashboard/tournaments" element={<TournamentManager />} />
-          <Route path="/dashboard/range" element={<RangeManager />} />
-          <Route path="/dashboard/golfers" element={<GolferDirectory />} />
-          <Route path="/dashboard/pricing" element={<PricingRules />} />
-          <Route path="/dashboard/bookings" element={<BookingsManagement />} />
-          <Route path="/dashboard/course" element={<CourseEditor />} />
-          <Route path="/dashboard/branding" element={<BrandingSettings />} />
-          <Route path="/dashboard/notifications" element={<NotificationSettings />} />
-          <Route path="/dashboard/payouts" element={<PayoutSettings />} />
-          <Route path="/dashboard/staff" element={<StaffAccounts />} />
-          <Route path="/create-course" element={<CreateCourse />} />
+          <Route path="/dashboard" element={<RequireCourseAdmin><Dashboard /></RequireCourseAdmin>} />
+          <Route path="/dashboard/tee-sheet" element={<RequireCourseAdmin><TeeSheetManager /></RequireCourseAdmin>} />
+          <Route path="/dashboard/tournaments" element={<RequireCourseAdmin><TournamentManager /></RequireCourseAdmin>} />
+          <Route path="/dashboard/range" element={<RequireCourseAdmin><RangeManager /></RequireCourseAdmin>} />
+          <Route path="/dashboard/golfers" element={<RequireCourseAdmin><GolferDirectory /></RequireCourseAdmin>} />
+          <Route path="/dashboard/pricing" element={<RequireCourseAdmin><PricingRules /></RequireCourseAdmin>} />
+          <Route path="/dashboard/bookings" element={<RequireCourseAdmin><BookingsManagement /></RequireCourseAdmin>} />
+          <Route path="/dashboard/course" element={<RequireOwner><CourseEditor /></RequireOwner>} />
+          <Route path="/dashboard/branding" element={<RequireOwner><BrandingSettings /></RequireOwner>} />
+          <Route path="/dashboard/notifications" element={<RequireOwner><NotificationSettings /></RequireOwner>} />
+          <Route path="/dashboard/payouts" element={<RequireOwner><PayoutSettings /></RequireOwner>} />
+          <Route path="/dashboard/pricing" element={<RequireOwner><PricingRules /></RequireOwner>} />
+          <Route path="/dashboard/staff" element={<RequireOwner><StaffAccounts /></RequireOwner>} />
+          <Route path="/create-course" element={<RequireOwner><CreateCourse /></RequireOwner>} />
 
           {/* Super Admin */}
           <Route path="/super-admin" element={<RequireSuperAdmin><SuperAdminDashboard /></RequireSuperAdmin>} />

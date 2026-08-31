@@ -294,8 +294,11 @@ public class AuthController : ControllerBase
 
     private string? GetIpAddress()
     {
-        if (Request.Headers.TryGetValue("X-Forwarded-For", out var forwardedFor))
-            return forwardedFor.FirstOrDefault();
+        // BUG-11 FIX: Only trust X-Forwarded-For when ASP.NET Core's ForwardedHeaders middleware
+        // has already validated and rewritten the connection IP (i.e., when behind a trusted proxy).
+        // Directly reading X-Forwarded-For from raw headers can be spoofed by any client.
+        // The RemoteIpAddress on HttpContext.Connection is always the real connection peer.
+        // For production deployments behind a reverse proxy, use ForwardedHeadersMiddleware in Program.cs.
         return HttpContext.Connection.RemoteIpAddress?.ToString();
     }
 }

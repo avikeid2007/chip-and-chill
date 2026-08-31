@@ -28,11 +28,14 @@ public class StaffController : ControllerBase
     {
         var staff = await _userManager.Users
             .Where(u => u.TenantId == tenantId && (u.Role == AppRole.Staff || u.Role == AppRole.CourseAdmin))
-            .OrderBy(u => u.LastName)
-            .Select(u => new StaffMemberResponse(u.Id, u.Email!, u.FirstName, u.LastName, u.LockoutEnd == null))
+            .OrderBy(u => u.Role) // Owners first (CourseAdmin=1 < Staff=2), then Staff
+            .ThenBy(u => u.LastName)
             .ToListAsync();
 
-        return Ok(staff);
+        var response = staff.Select(u =>
+            new StaffMemberResponse(u.Id, u.Email!, u.FirstName, u.LastName, u.LockoutEnd == null, u.Role.ToString()));
+
+        return Ok(response);
     }
 
     // POST /api/tenants/{tenantId}/staff — invite (create) a staff account.
@@ -58,7 +61,7 @@ public class StaffController : ControllerBase
             return BadRequest(result.Errors.Select(e => e.Description));
 
         return Created($"/api/tenants/{tenantId}/staff",
-            new StaffMemberResponse(staff.Id, staff.Email!, staff.FirstName, staff.LastName, true));
+            new StaffMemberResponse(staff.Id, staff.Email!, staff.FirstName, staff.LastName, true, AppRole.Staff.ToString()));
     }
 
     // DELETE /api/tenants/{tenantId}/staff/{userId} — removes the staff account.

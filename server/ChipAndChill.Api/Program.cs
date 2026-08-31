@@ -190,6 +190,26 @@ using (var scope = app.Services.CreateScope())
         var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
         logger.LogWarning(ex, "Could not automatically apply pending database migrations on startup.");
     }
+
+    // Ensure new Tenant fee and holes columns exist in database
+    string[] alterStatements = new[]
+    {
+        "ALTER TABLE `Tenants` ADD `GreenFee` decimal(18,2) NULL;",
+        "ALTER TABLE `Tenants` ADD `CaddieFee` decimal(18,2) NULL;",
+        "ALTER TABLE `Tenants` ADD `CoachFee` decimal(18,2) NULL;",
+        "ALTER TABLE `Tenants` ADD `HolesCount` int NOT NULL DEFAULT 18;"
+    };
+    foreach (var sql in alterStatements)
+    {
+        try
+        {
+            db.Database.ExecuteSqlRaw(sql);
+        }
+        catch
+        {
+            // Column already exists - ignore duplicate column error
+        }
+    }
 }
 
 // Enable Swagger in all environments (Development & Production)

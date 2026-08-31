@@ -54,6 +54,14 @@ export default function CourseEditor() {
   const [website, setWebsite] = useState("");
   const [selectedAmenities, setSelectedAmenities] = useState<string[]>([]);
 
+  // Rates & Staff Fees
+  const [currencySymbol, setCurrencySymbol] = useState("₹");
+  const [greenFee, setGreenFee] = useState<string>("");
+  const [caddieFee, setCaddieFee] = useState<string>("");
+  const [coachFee, setCoachFee] = useState<string>("");
+
+  // Hole Architecture & 9/18 Switcher
+  const [holesCount, setHolesCount] = useState<9 | 18>(18);
   const [holes, setHoles] = useState<ExtendedHoleForm[]>([]);
   const [uploadingCover, setUploadingCover] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -80,6 +88,10 @@ export default function CourseEditor() {
         setPhone(tenant.phone || "");
         setEmail(tenant.email || "");
         setWebsite(tenant.website || "");
+        setCurrencySymbol(tenant.currencySymbol || "₹");
+        setGreenFee(tenant.greenFee != null ? String(tenant.greenFee) : "");
+        setCaddieFee(tenant.caddieFee != null ? String(tenant.caddieFee) : "");
+        setCoachFee(tenant.coachFee != null ? String(tenant.coachFee) : "");
 
         if (tenant.amenities) {
           setSelectedAmenities(tenant.amenities.split(",").map((a) => a.trim()).filter(Boolean));
@@ -88,22 +100,24 @@ export default function CourseEditor() {
         }
 
         const h = await courseApi.getHoles(user.tenantId!);
+        const targetCount = (tenant.holesCount === 9 || (h.length > 0 && h.length <= 9)) ? 9 : 18;
+        setHolesCount(targetCount);
+
         if (h.length > 0) {
-          setHoles(
-            h.map((hole) => ({
-              holeNumber: hole.holeNumber,
-              par: hole.par,
-              handicapIndex: hole.handicapIndex || hole.holeNumber,
-              yardageBlack: hole.yardageBlack || (hole.yardageWhite + 30),
-              yardageBlue: hole.yardageBlue || (hole.yardageWhite + 15),
-              yardageWhite: hole.yardageWhite,
-              yardageGold: hole.yardageGold || (hole.yardageWhite - 25),
-              yardageRed: hole.yardageRed || (hole.yardageWhite - 55),
-              notes: hole.notes || "",
-            }))
-          );
+          const loadedHoles = h.map((hole) => ({
+            holeNumber: hole.holeNumber,
+            par: hole.par,
+            handicapIndex: hole.handicapIndex || hole.holeNumber,
+            yardageBlack: hole.yardageBlack || (hole.yardageWhite + 30),
+            yardageBlue: hole.yardageBlue || (hole.yardageWhite + 15),
+            yardageWhite: hole.yardageWhite,
+            yardageGold: hole.yardageGold || (hole.yardageWhite - 25),
+            yardageRed: hole.yardageRed || (hole.yardageWhite - 55),
+            notes: hole.notes || "",
+          }));
+          setHoles(loadedHoles.slice(0, targetCount));
         } else {
-          generateDefault18Holes();
+          generateDefaultHoles(targetCount);
         }
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to load course info.");
@@ -111,12 +125,12 @@ export default function CourseEditor() {
     })();
   }, [user]);
 
-  function generateDefault18Holes() {
+  function generateDefaultHoles(count: 9 | 18 = holesCount) {
     const defaultPars = [4, 4, 3, 5, 4, 4, 3, 5, 4, 4, 3, 5, 4, 4, 4, 3, 5, 4];
     const defaultWhites = [380, 410, 165, 520, 395, 425, 185, 540, 400, 390, 175, 530, 415, 375, 430, 190, 555, 420];
     const defaultStrokeIndexes = [7, 3, 15, 1, 11, 5, 17, 9, 13, 8, 16, 2, 6, 14, 4, 18, 10, 12];
 
-    const generated: ExtendedHoleForm[] = defaultPars.map((par, i) => {
+    const generated: ExtendedHoleForm[] = defaultPars.slice(0, count).map((par, i) => {
       const white = defaultWhites[i];
       return {
         holeNumber: i + 1,
@@ -131,6 +145,36 @@ export default function CourseEditor() {
       };
     });
     setHoles(generated);
+  }
+
+  function handleHoleCountSwitch(newCount: 9 | 18) {
+    setHolesCount(newCount);
+    if (newCount === 9) {
+      setHoles((prev) => prev.slice(0, 9));
+    } else {
+      setHoles((prev) => {
+        if (prev.length >= 18) return prev;
+        const defaultPars = [4, 4, 3, 5, 4, 4, 3, 5, 4, 4, 3, 5, 4, 4, 4, 3, 5, 4];
+        const defaultWhites = [380, 410, 165, 520, 395, 425, 185, 540, 400, 390, 175, 530, 415, 375, 430, 190, 555, 420];
+        const defaultStrokeIndexes = [7, 3, 15, 1, 11, 5, 17, 9, 13, 8, 16, 2, 6, 14, 4, 18, 10, 12];
+        const additional: ExtendedHoleForm[] = [];
+        for (let i = prev.length; i < 18; i++) {
+          const white = defaultWhites[i];
+          additional.push({
+            holeNumber: i + 1,
+            par: defaultPars[i],
+            handicapIndex: defaultStrokeIndexes[i],
+            yardageBlack: white + 30,
+            yardageBlue: white + 15,
+            yardageWhite: white,
+            yardageGold: white - 25,
+            yardageRed: white - 55,
+            notes: `Hole #${i + 1} pro tip: Favor center of fairway. Strategic green guarded by front bunkers.`,
+          });
+        }
+        return [...prev, ...additional];
+      });
+    }
   }
 
   function updateHole<K extends keyof ExtendedHoleForm>(index: number, field: K, value: ExtendedHoleForm[K]) {
@@ -187,13 +231,18 @@ export default function CourseEditor() {
           phone,
           email,
           website,
+          greenFee: greenFee ? parseFloat(greenFee) : null,
+          caddieFee: caddieFee ? parseFloat(caddieFee) : null,
+          coachFee: coachFee ? parseFloat(coachFee) : null,
+          holesCount,
         },
         user.token
       );
 
+      const activeHoles = holes.slice(0, holesCount);
       await courseApi.saveHoles(
         user.tenantId,
-        holes.map((h) => ({
+        activeHoles.map((h) => ({
           holeNumber: h.holeNumber,
           par: h.par,
           handicapIndex: h.handicapIndex,
@@ -222,6 +271,13 @@ export default function CourseEditor() {
     );
   }
 
+  // Summary calculations for holes
+  const totalPar = holes.reduce((sum, h) => sum + (h.par || 0), 0);
+  const totalWhiteYardage = holes.reduce((sum, h) => sum + (h.yardageWhite || 0), 0);
+  const totalBlackYardage = holes.reduce((sum, h) => sum + (h.yardageBlack || 0), 0);
+  const front9Par = holes.slice(0, 9).reduce((sum, h) => sum + (h.par || 0), 0);
+  const back9Par = holesCount === 18 ? holes.slice(9, 18).reduce((sum, h) => sum + (h.par || 0), 0) : 0;
+
   return (
     <AdminLayout>
       <div className="max-w-5xl mx-auto space-y-6 pb-12">
@@ -230,10 +286,10 @@ export default function CourseEditor() {
           <div>
             <div className="text-[10px] font-mono uppercase tracking-widest text-turf font-bold">Facility Management</div>
             <h1 className="text-2xl sm:text-3xl font-extrabold text-fairway tracking-tight">
-              Course Information & 18-Hole Architecture
+              Course Information & {holesCount}-Hole Architecture
             </h1>
             <p className="text-xs text-fairway/70 mt-0.5">
-              Customize course designer, grass types, slope rating, amenities, policies, and hole yardage matrix.
+              Customize course designer, grass types, green fees, caddie/coach charges, policies, and 9/18-hole matrix.
             </p>
           </div>
 
@@ -252,7 +308,7 @@ export default function CourseEditor() {
         {/* Global Alerts */}
         {saved && (
           <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold flex items-center justify-between animate-fadeIn">
-            <span>✓ Championship course specs & 18-hole matrix saved successfully!</span>
+            <span>✓ Course specifications, fee structure & {holesCount}-hole matrix saved successfully!</span>
             <button onClick={() => setSaved(false)}>✕</button>
           </div>
         )}
@@ -308,7 +364,7 @@ export default function CourseEditor() {
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 text-xs font-semibold text-gray-900 focus:ring-2 focus:ring-fairway"
-                placeholder="A magnificent 18-hole championship layout designed to challenge players of all skill levels..."
+                placeholder="A magnificent layout designed to challenge players of all skill levels..."
               />
             </div>
 
@@ -343,7 +399,99 @@ export default function CourseEditor() {
             </div>
           </div>
 
-          {/* Section 2: Architecture & Playing Specs */}
+          {/* Section 2: Pricing, Green Fee, Caddie & Coaching Charges */}
+          <div className="bg-white rounded-3xl border border-sand-dark p-6 sm:p-8 shadow-sm space-y-6">
+            <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+              <div>
+                <h3 className="text-base font-bold text-fairway flex items-center gap-2">
+                  <span>💳</span> Green Fees, Caddie & Coaching Charges
+                </h3>
+                <p className="text-xs text-gray-500">Standard rates for rounds, professional caddie assistance, and PGA coaching lessons.</p>
+              </div>
+              <span className="px-3 py-1 bg-emerald-50 text-emerald-800 text-[11px] font-bold font-mono rounded-full border border-emerald-100">
+                Currency: {currencySymbol}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+              {/* Green Fee */}
+              <div className="p-4 rounded-2xl bg-gray-50/80 border border-gray-200/80 space-y-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-lg">⛳</span>
+                  <label className="text-xs font-bold uppercase tracking-wider text-gray-800">
+                    Standard Green Fee
+                  </label>
+                </div>
+                <div className="relative">
+                  <span className="absolute left-3 top-2.5 text-xs font-bold text-gray-400">
+                    {currencySymbol}
+                  </span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={greenFee}
+                    onChange={(e) => setGreenFee(e.target.value)}
+                    className="w-full bg-white border border-gray-200 rounded-xl pl-8 pr-3.5 py-2.5 text-xs font-mono font-bold text-gray-900 focus:ring-2 focus:ring-fairway"
+                    placeholder="e.g. 1500"
+                  />
+                </div>
+                <p className="text-[11px] text-gray-500">Per player rate for a standard {holesCount}-hole round.</p>
+              </div>
+
+              {/* Caddie Fee */}
+              <div className="p-4 rounded-2xl bg-gray-50/80 border border-gray-200/80 space-y-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-lg">🏌️‍♂️</span>
+                  <label className="text-xs font-bold uppercase tracking-wider text-gray-800">
+                    Caddie Service Charges
+                  </label>
+                </div>
+                <div className="relative">
+                  <span className="absolute left-3 top-2.5 text-xs font-bold text-gray-400">
+                    {currencySymbol}
+                  </span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={caddieFee}
+                    onChange={(e) => setCaddieFee(e.target.value)}
+                    className="w-full bg-white border border-gray-200 rounded-xl pl-8 pr-3.5 py-2.5 text-xs font-mono font-bold text-gray-900 focus:ring-2 focus:ring-fairway"
+                    placeholder="e.g. 500"
+                  />
+                </div>
+                <p className="text-[11px] text-gray-500">Dedicated caddie fee per bag / round.</p>
+              </div>
+
+              {/* Coach / Pro Lesson Fee */}
+              <div className="p-4 rounded-2xl bg-gray-50/80 border border-gray-200/80 space-y-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-lg">👨‍🏫</span>
+                  <label className="text-xs font-bold uppercase tracking-wider text-gray-800">
+                    Coach / Lesson Charges
+                  </label>
+                </div>
+                <div className="relative">
+                  <span className="absolute left-3 top-2.5 text-xs font-bold text-gray-400">
+                    {currencySymbol}
+                  </span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={coachFee}
+                    onChange={(e) => setCoachFee(e.target.value)}
+                    className="w-full bg-white border border-gray-200 rounded-xl pl-8 pr-3.5 py-2.5 text-xs font-mono font-bold text-gray-900 focus:ring-2 focus:ring-fairway"
+                    placeholder="e.g. 2000"
+                  />
+                </div>
+                <p className="text-[11px] text-gray-500">PGA professional coaching / private session rate.</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Section 3: Architecture & Playing Specs */}
           <div className="bg-white rounded-3xl border border-sand-dark p-6 sm:p-8 shadow-sm space-y-6">
             <h3 className="text-base font-bold text-fairway pb-3 border-b border-gray-100 flex items-center gap-2">
               <span>📐</span> Architecture, Grass Types & Ratings
@@ -390,6 +538,7 @@ export default function CourseEditor() {
                   <option value="Desert">🏜️ Desert Layout</option>
                   <option value="Heathland">🌾 Heathland</option>
                   <option value="Resort">🏖️ Resort Style</option>
+                  <option value="Executive / Par 3">⛳ Executive / 9-Hole Range</option>
                 </select>
               </div>
             </div>
@@ -405,7 +554,7 @@ export default function CourseEditor() {
                   value={courseRating}
                   onChange={(e) => setCourseRating(e.target.value)}
                   className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-gray-900 focus:ring-2 focus:ring-fairway"
-                  placeholder="74.2"
+                  placeholder={holesCount === 9 ? "35.5" : "74.2"}
                 />
               </div>
 
@@ -418,7 +567,7 @@ export default function CourseEditor() {
                   value={slopeRating}
                   onChange={(e) => setSlopeRating(e.target.value)}
                   className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-gray-900 focus:ring-2 focus:ring-fairway"
-                  placeholder="138"
+                  placeholder="113"
                 />
               </div>
 
@@ -450,7 +599,7 @@ export default function CourseEditor() {
             </div>
           </div>
 
-          {/* Section 3: Amenities & Policies */}
+          {/* Section 4: Amenities & Policies */}
           <div className="bg-white rounded-3xl border border-sand-dark p-6 sm:p-8 shadow-sm space-y-6">
             <h3 className="text-base font-bold text-fairway pb-3 border-b border-gray-100 flex items-center gap-2">
               <span>⛳</span> Clubhouse Amenities & Club Policies
@@ -545,25 +694,81 @@ export default function CourseEditor() {
             </div>
           </div>
 
-          {/* Section 4: 18-Hole Matrix & Stroke Index Editor */}
+          {/* Section 5: Hole Architecture & 9/18 Switcher */}
           <div className="bg-white rounded-3xl border border-sand-dark p-6 sm:p-8 shadow-sm space-y-6">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-3 border-b border-gray-100">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-gray-100">
               <div>
-                <h3 className="text-base font-bold text-fairway flex items-center gap-2">
-                  <span>🗺️</span> 18-Hole Architecture & Tee Matrix
-                </h3>
-                <p className="text-xs text-gray-500">Fine-tune pars, stroke index (1–18), tee yardages, and strategy tips.</p>
+                <div className="flex items-center gap-3">
+                  <h3 className="text-base font-bold text-fairway flex items-center gap-2">
+                    <span>🗺️</span> Hole Architecture & Tee Matrix
+                  </h3>
+                  <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-800 text-[11px] font-mono font-bold border border-emerald-200">
+                    {holesCount} Holes Active
+                  </span>
+                </div>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  Toggle between 18-Hole Championship and 9-Hole Executive layouts. Fine-tune pars, stroke indexes, and tee yardages.
+                </p>
               </div>
 
-              <button
-                type="button"
-                onClick={generateDefault18Holes}
-                className="px-4 py-2 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-800 text-xs font-bold transition-colors"
-              >
-                ⚡ Reset to Standard 18 Holes
-              </button>
+              {/* 18 vs 9 Hole Switcher */}
+              <div className="flex items-center gap-2 bg-gray-100 p-1.5 rounded-2xl border border-gray-200 self-start sm:self-auto">
+                <button
+                  type="button"
+                  onClick={() => handleHoleCountSwitch(18)}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+                    holesCount === 18
+                      ? "bg-fairway text-white shadow-sm"
+                      : "text-gray-600 hover:text-gray-900"
+                  }`}
+                >
+                  <span>⛳</span> 18 Holes (Championship)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleHoleCountSwitch(9)}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+                    holesCount === 9
+                      ? "bg-fairway text-white shadow-sm"
+                      : "text-gray-600 hover:text-gray-900"
+                  }`}
+                >
+                  <span>🏌️</span> 9 Holes (Executive / Range)
+                </button>
+              </div>
             </div>
 
+            {/* Course Summary Metrics Bar */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-gray-50 p-4 rounded-2xl border border-gray-200 text-center">
+              <div>
+                <span className="text-[10px] uppercase font-bold text-gray-400 block">Total Par</span>
+                <span className="text-lg font-black text-fairway font-display">Par {totalPar}</span>
+                <span className="text-[10px] text-gray-500 block">
+                  {holesCount === 18 ? `Out: ${front9Par} • In: ${back9Par}` : `9 Holes Total`}
+                </span>
+              </div>
+              <div>
+                <span className="text-[10px] uppercase font-bold text-gray-400 block">⚪ White Tees</span>
+                <span className="text-lg font-black text-gray-800 font-mono">{totalWhiteYardage} yds</span>
+                <span className="text-[10px] text-gray-500 block">Standard Men's</span>
+              </div>
+              <div>
+                <span className="text-[10px] uppercase font-bold text-gray-400 block">⚫ Black Tees</span>
+                <span className="text-lg font-black text-gray-800 font-mono">{totalBlackYardage} yds</span>
+                <span className="text-[10px] text-gray-500 block">Championship Pro</span>
+              </div>
+              <div className="flex items-center justify-center">
+                <button
+                  type="button"
+                  onClick={() => generateDefaultHoles(holesCount)}
+                  className="px-3.5 py-2 rounded-xl bg-white border border-gray-300 hover:bg-gray-100 text-gray-700 text-xs font-bold transition-colors shadow-sm"
+                >
+                  ⚡ Reset to Default {holesCount} Holes
+                </button>
+              </div>
+            </div>
+
+            {/* Table of Holes */}
             <div className="overflow-x-auto">
               <table className="w-full text-center text-xs border-collapse">
                 <thead>
@@ -580,7 +785,7 @@ export default function CourseEditor() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {holes.map((h, i) => (
+                  {holes.slice(0, holesCount).map((h, i) => (
                     <tr key={h.holeNumber} className="hover:bg-gray-50/80">
                       <td className="py-2.5 px-2 font-mono font-black text-fairway">#{h.holeNumber}</td>
                       <td className="py-2.5 px-2">
@@ -598,7 +803,7 @@ export default function CourseEditor() {
                         <input
                           type="number"
                           min={1}
-                          max={18}
+                          max={holesCount}
                           value={h.handicapIndex}
                           onChange={(e) => updateHole(i, "handicapIndex", parseInt(e.target.value, 10) || 1)}
                           className="w-12 bg-gray-50 border border-gray-200 rounded-lg p-1 text-xs font-mono font-bold text-center focus:ring-1 focus:ring-fairway"
@@ -669,9 +874,10 @@ export default function CourseEditor() {
           <div className="flex items-center justify-end gap-3 pt-4">
             <button
               type="submit"
-              className="px-8 py-3.5 bg-fairway text-white font-extrabold text-sm rounded-2xl hover:bg-fairway/90 transition-all shadow-lg"
+              className="px-8 py-3.5 bg-fairway text-white font-extrabold text-sm rounded-2xl hover:bg-fairway/90 transition-all shadow-lg flex items-center gap-2"
             >
-              {saved ? "Saved ✓" : "Save All Course Changes"}
+              <span>💾</span>
+              <span>{saved ? "Saved ✓" : `Save All Changes (${holesCount} Holes)`}</span>
             </button>
           </div>
         </form>
@@ -679,3 +885,4 @@ export default function CourseEditor() {
     </AdminLayout>
   );
 }
+

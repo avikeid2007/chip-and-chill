@@ -27,7 +27,11 @@ public record UpdateTenantRequest(
     string? FairwaysGrass = null,
     string? Amenities = null,
     string? DressCode = null,
-    string? SpikePolicy = null
+    string? SpikePolicy = null,
+    decimal? GreenFee = null,
+    decimal? CaddieFee = null,
+    decimal? CoachFee = null,
+    int? HolesCount = null
 );
 
 public record CourseWeatherDto(
@@ -71,5 +75,9 @@ public record ResolvedTenantResponse(
     string? FairwaysGrass = null,
     string? Amenities = null,
     string? DressCode = null,
-    string? SpikePolicy = null
+    string? SpikePolicy = null,
+    decimal? GreenFee = null,
+    decimal? CaddieFee = null,
+    decimal? CoachFee = null,
+    int HolesCount = 18
 );

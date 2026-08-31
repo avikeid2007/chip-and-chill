@@ -30,6 +30,10 @@ export async function apiFetch<T>(
     const text = await res.text().catch(() => "");
     throw new Error(text || `Request failed with status ${res.status}`);
   }
+
+  // BUG-15 FIX: 204 No Content and empty 200 bodies are legitimate server responses
+  // (e.g., DELETE, PATCH). Return undefined cast to T — callers that need the value
+  // should type their response as T | undefined or T | null to be safe.
   if (res.status === 204) return undefined as T;
 
   const text = await res.text();

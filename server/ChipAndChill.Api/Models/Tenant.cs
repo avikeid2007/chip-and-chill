@@ -45,6 +45,12 @@ public class Tenant
     public string? DressCode { get; set; } = "Collared shirts and tailored golf attire required. Soft spikes only.";
     public string? SpikePolicy { get; set; } = "Non-metal / soft spikes only.";
 
+    // Rates, Staff Fees & Course Hole Setup
+    public decimal? GreenFee { get; set; }
+    public decimal? CaddieFee { get; set; }
+    public decimal? CoachFee { get; set; }
+    public int HolesCount { get; set; } = 18;
+
     // Stripe Connect & Payment Settings
     public string? StripeAccountId { get; set; }
     public bool StripePayoutsEnabled { get; set; } = false;

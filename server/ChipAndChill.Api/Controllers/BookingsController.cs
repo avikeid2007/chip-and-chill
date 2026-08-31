@@ -171,19 +171,45 @@ public class BookingsController : ControllerBase
 
     // GET /api/tenants/{tenantId}/tee-slots?date=2026-08-25[&includeBlocked=true]
     [HttpGet("tee-slots")]
+    [HttpGet("/api/tee-slots")]
     [AllowAnonymous]
-    public async Task<ActionResult<IEnumerable<TeeSlotResponse>>> GetTeeSlots(Guid tenantId, [FromQuery] DateOnly date, [FromQuery] bool includeBlocked = false)
+    public async Task<ActionResult<IEnumerable<TeeSlotResponse>>> GetTeeSlots([FromRoute] Guid tenantId, [FromQuery] DateOnly date, [FromQuery] bool includeBlocked = false, [FromQuery] Guid? tenant = null)
     {
+        var targetTenantId = tenantId != Guid.Empty ? tenantId : (tenant ?? Guid.Empty);
         var dayStart = date.ToDateTime(TimeOnly.MinValue);
         var dayEnd = dayStart.AddDays(1);
 
         var slots = await _db.TeeSlots
             .IgnoreQueryFilters()
-            .Where(s => s.TenantId == tenantId && s.StartTime >= dayStart && s.StartTime < dayEnd
+            .Where(s => (targetTenantId == Guid.Empty || s.TenantId == targetTenantId) && s.StartTime >= dayStart && s.StartTime < dayEnd
                         && (includeBlocked || !s.IsBlocked))
             .Include(s => s.Bookings)
             .OrderBy(s => s.StartTime)
             .ToListAsync();
+
+        // If no slots exist for the date and targetTenantId is specified, auto-generate on-demand if enabled
+        if (slots.Count == 0 && targetTenantId != Guid.Empty)
+        {
+            try
+            {
+                var settings = await _slotGenerator.GetOrCreateSettingsAsync(targetTenantId);
+                if (settings.AutoGenerateEnabled)
+                {
+                    await _slotGenerator.GenerateSlotsForTenantAsync(targetTenantId, date, date, settings);
+                    slots = await _db.TeeSlots
+                        .IgnoreQueryFilters()
+                        .Where(s => s.TenantId == targetTenantId && s.StartTime >= dayStart && s.StartTime < dayEnd
+                                    && (includeBlocked || !s.IsBlocked))
+                        .Include(s => s.Bookings)
+                        .OrderBy(s => s.StartTime)
+                        .ToListAsync();
+                }
+            }
+            catch
+            {
+                // fallback to empty
+            }
+        }
 
         var response = slots.Select(s =>
         {
@@ -220,30 +246,41 @@ public class BookingsController : ControllerBase
     }
 
     [HttpPost("bookings")]
+    [HttpPost("/api/bookings")]
     [Authorize]
-    public async Task<ActionResult<BookingResponse>> CreateBooking(Guid tenantId, CreateBookingRequest req)
+    public async Task<ActionResult<BookingResponse>> CreateBooking([FromRoute] Guid tenantId, [FromBody] CreateBookingRequest req)
     {
         var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (userIdClaim == null || !Guid.TryParse(userIdClaim, out var userId))
             return Unauthorized();
 
+        // Look up the slot directly by ID, ignoring tenant filters to guarantee finding the slot
         var slot = await _db.TeeSlots
             .IgnoreQueryFilters()
             .Include(s => s.Bookings)
-            .FirstOrDefaultAsync(s => s.Id == req.TeeSlotId && s.TenantId == tenantId);
+            .FirstOrDefaultAsync(s => s.Id == req.TeeSlotId);
 
         if (slot == null) return NotFound("Tee slot not found.");
+
+        var targetTenantId = slot.TenantId;
 
         if (slot.StartTime.Date < DateTime.UtcNow.Date)
             return BadRequest("Cannot book a tee slot for a past date.");
 
-        var alreadyBooked = slot.Bookings.Where(b => b.Status != BookingStatus.Cancelled).Sum(b => b.PartySize);
+        // BUG-01 FIX: Re-query live booked count directly from DB (not the already-loaded navigation
+        // property) to get the most up-to-date figure. Then add the booking inside a try/catch so that
+        // any concurrent insert that sneaks through will be caught by the DB and returned as a 409.
+        var alreadyBooked = await _db.Bookings
+            .IgnoreQueryFilters()
+            .Where(b => b.TeeSlotId == slot.Id && b.Status != BookingStatus.Cancelled)
+            .SumAsync(b => (int?)b.PartySize) ?? 0;
+
         if (alreadyBooked + req.PartySize > slot.MaxPlayers)
             return BadRequest("Not enough open spots in this slot.");
 
         var booking = new Booking
         {
-            TenantId = tenantId,
+            TenantId = targetTenantId,
             TeeSlotId = req.TeeSlotId,
             UserId = userId,
             PartySize = req.PartySize,
@@ -252,15 +289,30 @@ public class BookingsController : ControllerBase
             AmountPaid = 0
         };
         _db.Bookings.Add(booking);
-        await _db.SaveChangesAsync();
+        try
+        {
+            await _db.SaveChangesAsync();
+        }
+        catch (DbUpdateException)
+        {
+            // A concurrent booking may have filled the slot between our check and save.
+            // Re-verify capacity and return 409 if the slot is now full.
+            var currentBooked = await _db.Bookings
+                .IgnoreQueryFilters()
+                .Where(b => b.TeeSlotId == slot.Id && b.Status != BookingStatus.Cancelled)
+                .SumAsync(b => (int?)b.PartySize) ?? 0;
+            if (currentBooked > slot.MaxPlayers)
+                return Conflict("This slot just filled up. Please choose a different time.");
+            throw; // Rethrow unexpected DB errors
+        }
 
         var totalPrice = slot.Price * req.PartySize;
 
         // Booking confirmation email & SMS via per-course settings
         var booker = await _db.Users.IgnoreQueryFilters().FirstOrDefaultAsync(u => u.Id == userId);
-        await _notificationService.SendBookingConfirmationAsync(tenantId, booking, booker, slot);
+        await _notificationService.SendBookingConfirmationAsync(targetTenantId, booking, booker, slot);
 
-        return Created($"/api/tenants/{tenantId}/bookings/{booking.Id}",
+        return Created($"/api/tenants/{targetTenantId}/bookings/{booking.Id}",
             new BookingResponse(
                 booking.Id,
                 booking.TeeSlotId,
@@ -272,8 +324,9 @@ public class BookingsController : ControllerBase
     }
 
     [HttpGet("bookings/mine")]
+    [HttpGet("/api/bookings/mine")]
     [Authorize]
-    public async Task<ActionResult<IEnumerable<MyBookingResponse>>> GetMyBookings(Guid tenantId)
+    public async Task<ActionResult<IEnumerable<MyBookingResponse>>> GetMyBookings([FromRoute] Guid tenantId)
     {
         var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (userIdClaim == null || !Guid.TryParse(userIdClaim, out var userId))
@@ -281,13 +334,14 @@ public class BookingsController : ControllerBase
 
         var bookings = await _db.Bookings
             .IgnoreQueryFilters()
-            .Where(b => b.TenantId == tenantId && b.UserId == userId)
+            .Where(b => (tenantId == Guid.Empty || b.TenantId == tenantId) && b.UserId == userId)
             .Include(b => b.TeeSlot)
             .OrderByDescending(b => b.TeeSlot!.StartTime)
             .ToListAsync();
 
         return Ok(bookings.Select(b => new MyBookingResponse(
             b.Id,
+            b.TenantId,
             b.TeeSlotId,
             b.PartySize,
             b.Status.ToString(),
@@ -315,6 +369,11 @@ public class BookingsController : ControllerBase
         var isStaffOrAdmin = User.IsInRole("CourseAdmin") || User.IsInRole("Staff") || User.IsInRole("SuperAdmin");
         if (booking.UserId != userId && !isStaffOrAdmin)
             return Forbid();
+
+        // BUG-12 FIX: Golfers cannot cancel a booking whose tee time has already passed.
+        // Staff/admins are exempt from this restriction.
+        if (!isStaffOrAdmin && booking.TeeSlot != null && booking.TeeSlot.StartTime < DateTime.UtcNow)
+            return BadRequest("Cannot cancel a booking for a tee time that has already passed.");
 
         var wasPaid = booking.PaymentStatus == PaymentStatus.Paid;
         var paidAmount = booking.AmountPaid;

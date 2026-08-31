@@ -871,15 +871,20 @@ public class TournamentsController : ControllerBase
 
         var roundNum = req.RoundNumber > 0 ? req.RoundNumber : 1;
 
+        // BUG-03 FIX: Load ALL existing scores for this registration in ONE query before the loop
+        // to avoid N+1 database queries (one per hole).
+        var existingScores = await _db.TournamentScores
+            .IgnoreQueryFilters()
+            .Where(s => s.TournamentId == id && s.RegistrationId == req.RegistrationId && s.RoundNumber == roundNum)
+            .ToListAsync();
+
+        var existingLookup = existingScores.ToDictionary(s => s.HoleNumber);
+
         foreach (var item in req.Scores)
         {
-            var existing = await _db.TournamentScores
-                .IgnoreQueryFilters()
-                .FirstOrDefaultAsync(s => s.TournamentId == id && s.RegistrationId == req.RegistrationId && s.HoleNumber == item.HoleNumber && s.RoundNumber == roundNum);
-
             var points = CalculateStableford(item.GrossScore, item.Par);
 
-            if (existing != null)
+            if (existingLookup.TryGetValue(item.HoleNumber, out var existing))
             {
                 existing.GrossScore = item.GrossScore;
                 existing.Par = item.Par;
@@ -1323,7 +1328,7 @@ public class TournamentsController : ControllerBase
                 .ThenBy(s => s.HoleNumber)
                 .ToList();
 
-            var thru = scores.Count;
+            var thru = scores.Count(s => s.RoundNumber == tournament.CurrentRound);
             var gross = scores.Sum(s => s.GrossScore);
             var parSum = scores.Sum(s => s.Par);
             var toPar = thru > 0 ? gross - parSum : 0;
@@ -1385,11 +1390,14 @@ public class TournamentsController : ControllerBase
             ));
         }
 
-        // Sort based on format and MadeCut status (MadeCut = true first, MC at bottom)
+        // Sort based on format
+        // MadeCut == null means no cut has been applied yet — treat as "still playing" (sort to top).
+        // MadeCut == false means player missed cut — sort to bottom.
+        // MadeCut == true  means player made cut — sort to top.
         if (tournament.Format == TournamentFormat.Stableford)
         {
             rows = rows
-                .OrderBy(r => r.MadeCut ? 0 : 1)
+                .OrderBy(r => r.MadeCut == false ? 1 : 0)
                 .ThenByDescending(r => r.StablefordPoints)
                 .ThenBy(r => r.TotalGross)
                 .ToList();
@@ -1397,7 +1405,7 @@ public class TournamentsController : ControllerBase
         else
         {
             rows = rows
-                .OrderBy(r => r.MadeCut ? 0 : 1)
+                .OrderBy(r => r.MadeCut == false ? 1 : 0)
                 .ThenBy(r => r.ThruHoles == 0 ? 1 : 0)
                 .ThenBy(r => r.ToPar)
                 .ThenBy(r => r.TotalGross)

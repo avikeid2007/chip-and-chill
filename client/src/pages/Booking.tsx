@@ -14,6 +14,9 @@ import { formatTime, toDateInput, formatDateLabel } from "../utils/time";
 interface GolferSlot {
   id: string;
   time: string;
+  // BUG-09 FIX: Store the raw ISO startTime alongside the formatted display string
+  // so time filtering doesn't have to re-parse a locale-formatted string.
+  startTimeIso: string;
   playersBooked: number;
   playersMax: number;
   price: number;
@@ -94,6 +97,7 @@ export default function Booking() {
           data.map((s) => ({
             id: s.id,
             time: formatTime(s.startTime),
+            startTimeIso: s.startTime,
             playersBooked: s.playersBooked,
             playersMax: s.maxPlayers,
             price: s.price,
@@ -105,17 +109,12 @@ export default function Booking() {
       .finally(() => setLoading(false));
   }, [tenantId, selectedDate, user?.token]);
 
-  // Filter slots by time of day
+  // BUG-09 FIX: Filter slots using the raw ISO startTimeIso rather than parsing
+  // the already-formatted display string (which is fragile and locale-dependent).
   const filteredSlots = useMemo(() => {
     return slots.filter((slot) => {
       if (timeFilter === "all") return true;
-      // Parse hour from formatted time string (e.g. "07:30 AM", "02:00 PM")
-      const parts = slot.time.split(" ");
-      const [hourStr] = parts[0].split(":");
-      let hour = parseInt(hourStr, 10);
-      if (parts[1]?.toUpperCase() === "PM" && hour !== 12) hour += 12;
-      if (parts[1]?.toUpperCase() === "AM" && hour === 12) hour = 0;
-
+      const hour = new Date(slot.startTimeIso).getHours();
       if (timeFilter === "morning") return hour < 11;
       if (timeFilter === "afternoon") return hour >= 11 && hour < 15;
       if (timeFilter === "twilight") return hour >= 15;
@@ -219,7 +218,7 @@ export default function Booking() {
               </h1>
               
               <p className="text-sm text-gray-600 mt-1 flex items-center gap-2">
-                <span>📍</span> {tenant?.address || "Premier Championship Links"} • 18 Holes • Par 72
+                <span>📍</span> {tenant?.address || "Premier Championship Links"} • {tenant?.holesCount || 18} Holes
               </p>
             </div>
 
@@ -406,7 +405,7 @@ export default function Booking() {
                         </div>
 
                         <div className="mt-3 pt-2.5 border-t border-gray-100 flex items-center justify-between">
-                          <span className="text-xs text-gray-500 font-medium">18 Holes</span>
+                          <span className="text-xs text-gray-500 font-medium">{tenant?.holesCount || 18} Holes</span>
                           <span className="text-base font-extrabold text-fairway font-mono">
                             {currencySymbol}{slot.price.toFixed(0)}
                             <span className="text-[10px] font-normal text-gray-400"> / player</span>

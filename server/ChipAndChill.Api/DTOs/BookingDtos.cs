@@ -6,7 +6,9 @@ public record CreateTeeSlotRequest(DateTime StartTime, int MaxPlayers, decimal P
 
 // Flat booking shapes — entity serialization would cycle (Booking → TeeSlot → Bookings).
 public record BookingResponse(Guid Id, Guid TeeSlotId, int PartySize, string Status, string PaymentStatus, decimal AmountPaid, decimal TotalPrice);
-public record MyBookingResponse(Guid Id, Guid TeeSlotId, int PartySize, string Status, DateTime StartTime, decimal Price, string PaymentStatus, decimal AmountPaid);
+// BUG-05 FIX: Include TenantId so the global /api/bookings/mine response can be enriched
+// with course name / currency without an additional per-tenant lookup on the client.
+public record MyBookingResponse(Guid Id, Guid TenantId, Guid TeeSlotId, int PartySize, string Status, DateTime StartTime, decimal Price, string PaymentStatus, decimal AmountPaid);
 
 // ---- Waitlist ----
 public record JoinWaitlistRequest(int PartySize);

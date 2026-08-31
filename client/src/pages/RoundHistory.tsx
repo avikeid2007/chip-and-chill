@@ -59,6 +59,14 @@ export default function RoundHistory() {
               const score = r.holes.reduce((s, h) => s + h.strokes, 0);
               const par = r.holes.reduce((s, h) => s + h.par, 0);
               const diff = score - par;
+              const isNine = r.holes.length <= 9;
+              const isBackNine = isNine && r.holes.some((h) => h.holeNumber > 9);
+              const holeLabel = isNine
+                ? isBackNine
+                  ? "9 Holes (Back 9)"
+                  : "9 Holes (Front 9)"
+                : "18 Holes (Full)";
+
               return (
                 <Link
                   key={r.id}
@@ -66,13 +74,29 @@ export default function RoundHistory() {
                   className="flex items-center justify-between px-6 py-4 border-b border-[#EEF1ED] last:border-b-0 hover:bg-[#FAFBF9] transition-colors"
                 >
                   <div>
-                    <p className="font-medium text-fairway">{new Date(r.playedOn).toLocaleDateString()}</p>
-                    <p className="text-mono text-xs text-ink-soft mt-1">{r.teeBox} tees · {r.holes.length} holes</p>
+                    <div className="flex items-center gap-2">
+                      {/* BUG-14 FIX: Parse only the date portion ("YYYY-MM-DD") so
+                          timezone conversion doesn't shift the displayed date by one day
+                          for golfers in UTC+ timezones. */}
+                      <p className="font-medium text-fairway">
+                        {new Date(r.playedOn.slice(0, 10) + "T12:00:00").toLocaleDateString("en-US", {
+                          year: "numeric",
+                          month: "short",
+                          day: "numeric",
+                        })}
+                      </p>
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                        isNine ? "bg-amber-100 text-amber-900 border border-amber-200" : "bg-emerald-50 text-emerald-800 border border-emerald-100"
+                      }`}>
+                        {holeLabel}
+                      </span>
+                    </div>
+                    <p className="text-mono text-xs text-ink-soft mt-1">{r.teeBox} tees · Par {par}</p>
                   </div>
                   <div className="text-right">
                     <p className="text-mono font-bold text-lg text-fairway">{score}</p>
                     <span className={`pill ${diff <= 0 ? "pill-green" : "pill-gray"}`}>
-                      {diff > 0 ? `+${diff}` : diff} to par
+                      {diff > 0 ? `+${diff}` : diff === 0 ? "E" : diff} to par
                     </span>
                   </div>
                 </Link>

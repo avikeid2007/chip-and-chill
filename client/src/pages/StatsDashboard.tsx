@@ -8,12 +8,16 @@ function ScoreTrendChart({ trend }: { trend: Stats["trend"] }) {
   if (trend.length < 2) return <p className="text-xs text-gray-500 py-6 text-center">Log at least 2 rounds to visualize your handicap and scoring trend.</p>;
 
   const w = 640, h = 200, pad = 35;
-  const scores = trend.map((t) => t.strokes);
-  const min = Math.max(50, Math.min(...scores) - 2);
-  const max = Math.max(...scores) + 2;
+  // Normalize display: for differential/strokes, we show differentials or strokes
+  const scores = trend.map((t) => t.differential ?? (t.holeCount && t.holeCount <= 9 ? t.strokes * 2 : t.strokes));
+  const min = Math.max(0, Math.floor(Math.min(...scores) - 2));
+  const max = Math.ceil(Math.max(...scores) + 2);
   const x = (i: number) => pad + (i / (trend.length - 1)) * (w - pad * 2);
-  const y = (v: number) => h - pad - ((v - min) / (max - min)) * (h - pad * 2);
-  const path = trend.map((t, i) => `${i === 0 ? "M" : "L"}${x(i)},${y(t.strokes)}`).join(" ");
+  const y = (v: number) => h - pad - ((v - min) / Math.max(1, max - min)) * (h - pad * 2);
+  const path = trend.map((t, i) => {
+    const val = t.differential ?? (t.holeCount && t.holeCount <= 9 ? t.strokes * 2 : t.strokes);
+    return `${i === 0 ? "M" : "L"}${x(i)},${y(val)}`;
+  }).join(" ");
 
   return (
     <svg viewBox={`0 0 ${w} ${h}`} className="w-full h-auto">
@@ -43,12 +47,23 @@ function ScoreTrendChart({ trend }: { trend: Stats["trend"] }) {
       <path d={path} fill="none" stroke="#059669" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
 
       {/* Data points */}
-      {trend.map((t, i) => (
-        <g key={i} className="group cursor-pointer">
-          <circle cx={x(i)} cy={y(t.strokes)} r="5" fill="#D4A017" stroke="#FFFFFF" strokeWidth="2" />
-          <title>{`${new Date(t.playedOn).toLocaleDateString()}: ${t.strokes} Gross (Par ${t.par})`}</title>
-        </g>
-      ))}
+      {trend.map((t, i) => {
+        const val = t.differential ?? (t.holeCount && t.holeCount <= 9 ? t.strokes * 2 : t.strokes);
+        const isNine = t.holeCount != null && t.holeCount <= 9;
+        return (
+          <g key={i} className="group cursor-pointer">
+            <circle
+              cx={x(i)}
+              cy={y(val)}
+              r={isNine ? "4.5" : "5.5"}
+              fill={isNine ? "#F59E0B" : "#10B981"}
+              stroke="#FFFFFF"
+              strokeWidth="2"
+            />
+            <title>{`${new Date(t.playedOn).toLocaleDateString()}: ${t.strokes} Gross (${isNine ? "9-Hole" : "18-Hole"}, Par ${t.par}) ${t.differential != null ? `• WHS Diff: ${t.differential}` : ""}`}</title>
+          </g>
+        );
+      })}
     </svg>
   );
 }
@@ -226,22 +241,35 @@ export default function StatsDashboard() {
           <div className="w-full grid grid-cols-2 sm:grid-cols-4 gap-4 pt-4 sm:pt-0 border-t sm:border-t-0 sm:border-l border-white/10 sm:pl-8 text-center sm:text-left">
             <div className="bg-white/5 sm:bg-transparent p-3 sm:p-0 rounded-2xl">
               <div className="text-white/60 text-[11px] font-bold uppercase tracking-wider">Rounds</div>
-              <div className="text-white font-black text-xl mt-0.5">{stats?.roundsPlayed ?? 12}</div>
+              <div className="text-white font-black text-xl mt-0.5">{stats?.roundsPlayed ?? 0}</div>
+              <div className="text-[10px] text-white/50">{stats?.full18Rounds ?? 0} (18H) • {(stats?.roundsPlayed ?? 0) - (stats?.full18Rounds ?? 0)} (9H)</div>
             </div>
             <div className="bg-white/5 sm:bg-transparent p-3 sm:p-0 rounded-2xl">
               <div className="text-white/60 text-[11px] font-bold uppercase tracking-wider">Scoring Avg</div>
-              <div className="text-white font-black text-xl mt-0.5">{stats?.averageScore ?? "82.4"}</div>
+              <div className="text-white font-black text-xl mt-0.5">{stats?.averageScore ?? "—"}</div>
+              <div className="text-[10px] text-white/50">{stats?.full18Rounds ? "18-Hole Avg" : "9-Hole Avg"}</div>
             </div>
             <div className="bg-white/5 sm:bg-transparent p-3 sm:p-0 rounded-2xl">
               <div className="text-white/60 text-[11px] font-bold uppercase tracking-wider">Avg vs Par</div>
               <div className="text-white font-black text-xl mt-0.5">
-                {stats?.averageToPar != null ? (stats.averageToPar > 0 ? `+${stats.averageToPar}` : stats.averageToPar) : "+10.4"}
+                {stats?.averageToPar != null ? (stats.averageToPar > 0 ? `+${stats.averageToPar}` : `${stats.averageToPar}`) : "—"}
               </div>
+              <div className="text-[10px] text-white/50">per round</div>
             </div>
             <div className="bg-white/5 sm:bg-transparent p-3 sm:p-0 rounded-2xl">
-              <div className="text-white/60 text-[11px] font-bold uppercase tracking-wider">Best 18-Holes</div>
+              <div className="text-white/60 text-[11px] font-bold uppercase tracking-wider">Best Round</div>
               <div className="text-white font-black text-xl mt-0.5">
-                {stats?.bestRound ? `${stats.bestRound.strokes}` : "76 (+4)"}
+                {stats?.bestRound ? (
+                  <span>
+                    {stats.bestRound.strokes}{" "}
+                    <span className="text-xs font-normal text-white/70">
+                      ({stats.bestRound.strokes - stats.bestRound.par >= 0 ? `+${stats.bestRound.strokes - stats.bestRound.par}` : stats.bestRound.strokes - stats.bestRound.par})
+                    </span>
+                  </span>
+                ) : "—"}
+              </div>
+              <div className="text-[10px] text-white/50">
+                {stats?.bestRound ? (stats.bestRound.par <= 36 ? "9-Hole Record" : "18-Hole Record") : ""}
               </div>
             </div>
           </div>

@@ -72,7 +72,9 @@ public record ResetPasswordRequest(string Email, string Token, string NewPasswor
 
 // ---- Staff management ----
 public record InviteStaffRequest(string Email, string Password, string FirstName, string LastName);
-public record StaffMemberResponse(Guid Id, string Email, string FirstName, string LastName, bool IsActive);
+// Role is a string (e.g. "CourseAdmin", "Staff") — NOT the enum int — so the client can
+// match it against the AppRole union type without a JsonStringEnumConverter.
+public record StaffMemberResponse(Guid Id, string Email, string FirstName, string LastName, bool IsActive, string Role = "Staff");
 
 // ---- Admin bookings ----
 public record AdminBookingResponse(Guid Id, Guid TeeSlotId, DateTime StartTime, string UserEmail, string UserName, int PartySize, BookingStatus Status, decimal Price, PaymentStatus PaymentStatus, decimal AmountPaid);
@@ -86,7 +88,8 @@ public record UpdateTeeSlotRequest(bool IsBlocked);
 public record DashboardSummaryResponse(int BookingsToday, int BookingsThisWeek, int UpcomingBookings, int TotalRounds, double OccupancyPercent, int ActiveSlotsToday);
 
 // ---- Golfer stats (Phase 2) ----
-public record TrendPoint(DateTime PlayedOn, int Strokes, int Par, double? Differential);
+// HoleCount lets the frontend chart distinguish 9-hole vs 18-hole rounds visually.
+public record TrendPoint(DateTime PlayedOn, int Strokes, int Par, double? Differential, int HoleCount = 18);
 public record HoleStat(int HoleNumber, double AvgStrokes, double AvgPar, int Birdies, int Pars, int Bogeys, int DoublesOrWorse);
 public record BestRoundInfo(Guid RoundId, DateTime PlayedOn, int Strokes, int Par);
 public record StatsResponse(

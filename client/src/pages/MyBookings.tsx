@@ -4,7 +4,6 @@ import NavBar from "../components/NavBar";
 import { useAuth } from "../api/AuthContext";
 import { bookingsApi, type Booking } from "../api/bookings";
 import { apiFetch } from "../api/client";
-import { formatTime } from "../utils/time";
 
 type DisplayStatus = "Upcoming" | "Completed" | "Cancelled";
 
@@ -22,31 +21,73 @@ export default function MyBookings() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  function getBookingStartTime(b: Booking): Date | null {
+    const st = b.startTime || b.teeSlot?.startTime;
+    if (!st) return null;
+    const d = new Date(st);
+    return isNaN(d.getTime()) ? null : d;
+  }
+
+  function getBookingPrice(b: Booking): number {
+    return b.price ?? b.teeSlot?.price ?? (b.totalPrice ? b.totalPrice / (b.partySize || 1) : 500);
+  }
+
+  function formatBookingDate(b: Booking): string {
+    const d = getBookingStartTime(b);
+    // BUG-17 FIX: Return "Unknown date" (not "Today") when startTime is missing.
+    // Previously returning "Today" caused bookings without a startTime to incorrectly
+    // appear in the Upcoming tab (displayStatus classified them as Upcoming).
+    if (!d) return "Unknown date";
+    return d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" });
+  }
+
+  function formatBookingTime(b: Booking): string {
+    const d = getBookingStartTime(b);
+    if (!d) return "TBD";
+    return d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+  }
+
+  function displayStatus(b: Booking): DisplayStatus {
+    if (b.status === "Cancelled") return "Cancelled";
+    if (b.status === "CheckedIn") return "Completed";
+    const start = getBookingStartTime(b);
+    if (!start) return "Completed";
+
+    // Keep reservations on or after start of today in Upcoming Passes
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
+    return start >= startOfToday ? "Upcoming" : "Completed";
+  }
+
   useEffect(() => {
     if (!user) return;
     (async () => {
       try {
+        // BUG-05 FIX: Use the single global /api/bookings/mine endpoint instead of looping
+        // through every tenant and firing N separate API calls. The backend route already
+        // accepts tenantId == Guid.Empty to return cross-tenant results.
+        const rawBookings = await bookingsApi.mineAll(user.token);
+
+        // Fetch tenant metadata in one call to enrich course names / currency symbols
         const tenants = await apiFetch<{ id: string; name: string; address?: string; currencySymbol?: string }[]>("/api/tenants");
-        const all: EnrichedBooking[] = [];
-        for (const t of tenants) {
-          try {
-            const list = await bookingsApi.mine(t.id, user.token);
-            all.push(
-              ...list.map((b) => ({
-                ...b,
-                courseName: t.name,
-                courseAddress: t.address,
-                courseId: t.id,
-                currencySymbol: t.currencySymbol || "₹",
-              }))
-            );
-          } catch {
-            /* ignore individual tenant errors */
-          }
-        }
-        all.sort((a, b) =>
-          new Date(b.teeSlot?.startTime ?? 0).getTime() - new Date(a.teeSlot?.startTime ?? 0).getTime()
-        );
+        const tenantMap = Object.fromEntries(tenants.map((t) => [t.id.toLowerCase(), t]));
+
+        const all: EnrichedBooking[] = rawBookings.map((b) => {
+          const t = tenantMap[(b as any).tenantId?.toLowerCase?.() ?? ""];
+          return {
+            ...b,
+            courseName: t?.name,
+            courseAddress: t?.address,
+            courseId: (b as any).tenantId ?? t?.id,
+            currencySymbol: t?.currencySymbol || "₹",
+          };
+        });
+
+        all.sort((a, b) => {
+          const timeA = getBookingStartTime(a)?.getTime() ?? 0;
+          const timeB = getBookingStartTime(b)?.getTime() ?? 0;
+          return timeB - timeA;
+        });
         setBookings(all);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to load bookings.");
@@ -56,11 +97,6 @@ export default function MyBookings() {
     })();
   }, [user]);
 
-  function displayStatus(b: Booking): DisplayStatus {
-    if (b.status === "Cancelled") return "Cancelled";
-    if (b.status === "CheckedIn") return "Completed";
-    return b.teeSlot && new Date(b.teeSlot.startTime) > new Date() ? "Upcoming" : "Completed";
-  }
 
   async function cancelBooking(id: string) {
     if (!user) return;
@@ -75,8 +111,8 @@ export default function MyBookings() {
   }
 
   function downloadCalendarInvite(b: EnrichedBooking) {
-    if (!b.teeSlot) return;
-    const startTime = new Date(b.teeSlot.startTime);
+    const startTime = getBookingStartTime(b);
+    if (!startTime) return;
     const endTime = new Date(startTime.getTime() + 4 * 60 * 60 * 1000); // 4-hour round
 
     const formatDate = (d: Date) => d.toISOString().replace(/-|:|\.\d+/g, "");
@@ -211,6 +247,8 @@ export default function MyBookings() {
                   upcomingBookings.map((b) => {
                     const isPaid = b.paymentStatus === "Paid";
                     const refCode = `CC-${b.id.slice(0, 6).toUpperCase()}`;
+                    const pricePerGolfer = getBookingPrice(b);
+                    const totalPrice = pricePerGolfer * (b.partySize || 1);
 
                     return (
                       <div
@@ -243,14 +281,14 @@ export default function MyBookings() {
                           <div>
                             <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400 block">Date</span>
                             <span className="text-sm font-black text-gray-900 block mt-0.5">
-                              {b.teeSlot ? new Date(b.teeSlot.startTime).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }) : "Today"}
+                              {formatBookingDate(b)}
                             </span>
                           </div>
 
                           <div>
                             <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400 block">Tee Time</span>
                             <span className="text-sm font-black text-fairway font-mono block mt-0.5">
-                              {b.teeSlot ? formatTime(b.teeSlot.startTime) : "TBD"}
+                              {formatBookingTime(b)}
                             </span>
                           </div>
 
@@ -266,7 +304,7 @@ export default function MyBookings() {
                             <span className={`text-xs font-bold inline-block mt-0.5 px-2 py-0.5 rounded-full ${
                               isPaid ? "bg-emerald-50 text-emerald-800 border border-emerald-200" : "bg-amber-50 text-amber-800 border border-amber-200"
                             }`}>
-                              {isPaid ? `✓ Paid ${b.currencySymbol}${((b.price ?? b.teeSlot?.price ?? 50) * b.partySize).toFixed(2)}` : "⛳ Pay at Pro Shop"}
+                              {isPaid ? `✓ Paid ${b.currencySymbol}${totalPrice.toFixed(2)}` : `⛳ Pay at Course (${b.currencySymbol}${totalPrice.toFixed(0)})`}
                             </span>
                           </div>
                         </div>
@@ -326,10 +364,12 @@ export default function MyBookings() {
                         <div>
                           <h4 className="text-sm font-bold text-gray-900">{b.courseName || "Course"}</h4>
                           <p className="text-xs text-gray-500 font-mono mt-0.5">
-                            {b.teeSlot ? new Date(b.teeSlot.startTime).toLocaleDateString() : ""} • {b.partySize} players
+                            {formatBookingDate(b)} at {formatBookingTime(b)} • {b.partySize} {b.partySize === 1 ? "player" : "players"}
                           </p>
                         </div>
-                        <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-gray-100 text-gray-600 self-start sm:self-center">
+                        <span className={`px-2.5 py-1 rounded-full text-[11px] font-bold self-start sm:self-center ${
+                          b.status === "Cancelled" ? "bg-red-50 text-red-700 border border-red-200" : "bg-gray-100 text-gray-600"
+                        }`}>
                           {b.status}
                         </span>
                       </div>

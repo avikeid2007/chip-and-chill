@@ -1,4 +1,5 @@
 import { apiFetch } from "./client";
+import type { AppRole } from "./auth";
 
 export interface StaffMember {
   id: string;
@@ -6,6 +7,7 @@ export interface StaffMember {
   firstName: string;
   lastName: string;
   isActive: boolean;
+  role: AppRole; // "CourseAdmin" = Owner, "Staff" = Staff
 }
 
 export interface AdminBooking {
