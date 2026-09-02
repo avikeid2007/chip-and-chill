@@ -1,6 +1,7 @@
 import { useEffect, useState, useMemo } from "react";
 import { useParams, Link } from "react-router-dom";
 import NavBar from "../components/NavBar";
+import SeoHead from "../components/SeoHead";
 import { tournamentApi } from "../api/tournament";
 import { courseApi } from "../api/course";
 import { useAuth } from "../api/AuthContext";
@@ -289,6 +290,58 @@ export default function TournamentDetail() {
 
   return (
     <div className="min-h-screen bg-[#FAFBF9] text-fairway font-sans pb-16">
+      <SeoHead
+        title={`${tournament.name} — Live Leaderboard & Scores`}
+        description={`Follow live scores, USGA hole-by-hole scorecards, skins pot calculations, cut lines, and payouts for ${tournament.name}.`}
+        keywords={[tournament.name, "golf leaderboard", "live golf scores", "tournament pairings", "skins pot", "stableford", "stroke play"]}
+        canonicalUrl={`https://chipandchill.com/tournaments/${id}`}
+        ogType="event"
+        jsonLd={[
+          {
+            "@type": "SportsEvent",
+            "name": tournament.name,
+            "description": tournament.description || `Live golf tournament: ${tournament.name}`,
+            "startDate": tournament.startDate,
+            "endDate": tournament.endDate,
+            "eventStatus": tournament.status === "Completed"
+              ? "https://schema.org/EventMovedOnline"
+              : "https://schema.org/EventScheduled",
+            "offers": {
+              "@type": "Offer",
+              "price": tournament.entryFee.toString(),
+              "priceCurrency": "INR",
+              "availability": tournament.registrations.length < tournament.maxParticipants
+                ? "https://schema.org/InStock"
+                : "https://schema.org/SoldOut",
+              "url": `https://chipandchill.com/tournaments/${id}`
+            },
+            "url": `https://chipandchill.com/tournaments/${id}`
+          },
+          {
+            "@type": "BreadcrumbList",
+            "itemListElement": [
+              {
+                "@type": "ListItem",
+                "position": 1,
+                "name": "Home",
+                "item": "https://chipandchill.com/"
+              },
+              {
+                "@type": "ListItem",
+                "position": 2,
+                "name": "Tournaments",
+                "item": "https://chipandchill.com/tournaments"
+              },
+              {
+                "@type": "ListItem",
+                "position": 3,
+                "name": tournament.name,
+                "item": `https://chipandchill.com/tournaments/${id}`
+              }
+            ]
+          }
+        ]}
+      />
       {/* Header Banner */}
       <div className="bg-gradient-to-br from-[#0B3024] to-[#124E3F] text-white">
         <NavBar />

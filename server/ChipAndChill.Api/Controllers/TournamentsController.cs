@@ -548,6 +548,52 @@ public class TournamentsController : ControllerBase
         ));
     }
 
+    // POST /api/tenants/{tenantId}/tournaments/{id}/registrations/{regId}/withdraw
+    [HttpPost("{id:guid}/registrations/{regId:guid}/withdraw")]
+    [Authorize]
+    public async Task<ActionResult<TournamentRegistrationDto>> WithdrawRegistration(Guid tenantId, Guid id, Guid regId)
+    {
+        var reg = await _db.TournamentRegistrations
+            .IgnoreQueryFilters()
+            .FirstOrDefaultAsync(r => r.TenantId == tenantId && r.TournamentId == id && r.Id == regId);
+
+        if (reg == null) return NotFound("Registration not found.");
+
+        var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        Guid? currentUserId = null;
+        if (userIdClaim != null && Guid.TryParse(userIdClaim, out var parsed)) currentUserId = parsed;
+
+        var isStaffOrAdmin = User.IsInRole("CourseAdmin") || User.IsInRole("Staff") || User.IsInRole("SuperAdmin");
+        var isOwner = reg.UserId.HasValue && reg.UserId == currentUserId;
+
+        if (!isOwner && !isStaffOrAdmin)
+            return Forbid();
+
+        reg.Status = TournamentRegistrationStatus.Withdrawn;
+        reg.PairingGroup = null;
+        reg.TeeTime = null;
+
+        await _db.SaveChangesAsync();
+
+        return Ok(new TournamentRegistrationDto(
+            reg.Id,
+            reg.TournamentId,
+            reg.UserId,
+            reg.GolferName,
+            reg.GolferEmail,
+            reg.HandicapIndex,
+            reg.Flight,
+            reg.MadeCut,
+            reg.PointsEarned,
+            reg.Status,
+            reg.PaymentStatus,
+            reg.AmountPaid,
+            reg.PairingGroup,
+            reg.TeeTime,
+            reg.RegisteredAt
+        ));
+    }
+
     // POST /api/tenants/{tenantId}/tournaments/{id}/auto-flight
     [HttpPost("{id:guid}/auto-flight")]
     [Authorize(Roles = "CourseAdmin,Staff,SuperAdmin")]

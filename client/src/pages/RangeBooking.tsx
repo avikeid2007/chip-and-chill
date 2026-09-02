@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import NavBar from "../components/NavBar";
+import SeoHead from "../components/SeoHead";
 import { rangeApi } from "../api/range";
 import { courseApi } from "../api/course";
 import { useAuth } from "../api/AuthContext";
@@ -102,7 +103,7 @@ export default function RangeBooking() {
         setSelectedSlot(null);
       }, 1500);
     } catch (err: any) {
-      alert(err?.message || "Booking failed.");
+      alert(err?.message || "Failed to complete booking.");
     } finally {
       setBookingInProgress(false);
     }
@@ -119,6 +120,18 @@ export default function RangeBooking() {
 
   return (
     <div className="min-h-screen bg-[#FAFBF9] pb-28 md:pb-12">
+      <SeoHead
+        title={`TrackMan Driving Range & Practice Bay Reservations — ${tenantName}`}
+        description={`Reserve high-tech TrackMan simulator bays, heated practice stalls, and automated ball dispensers online at ${tenantName}.`}
+        keywords={["driving range", "TrackMan bay", "golf simulator", "practice stall", "golf practice range", "reserve golf bay"]}
+        canonicalUrl="https://chipandchill.com/range"
+        jsonLd={{
+          "@type": "SportsActivityLocation",
+          "name": `${tenantName} Driving Range & TrackMan Bays`,
+          "description": "Premium driving range practice bays with launch monitors and ball flight tracking.",
+          "url": "https://chipandchill.com/range"
+        }}
+      />
       <div className="bg-gradient-to-br from-fairway to-turf text-white">
         <NavBar />
         <div className="max-w-6xl mx-auto px-6 md:px-14 pb-14 pt-8">

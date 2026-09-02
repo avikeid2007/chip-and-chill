@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import NavBar from "../components/NavBar";
+import SeoHead from "../components/SeoHead";
 import { courseApi, type Tenant } from "../api/course";
 import { API_BASE } from "../api/client";
 
@@ -31,6 +32,27 @@ export default function CourseBrowse() {
 
   return (
     <div className="min-h-screen bg-[#F7F9F6] text-gray-900 font-sans flex flex-col">
+      <SeoHead
+        title="Explore Championship Golf Courses & Driving Ranges"
+        description="Discover top 18-hole championship golf layouts, resort destinations, and high-tech TrackMan driving range practice bays. Book tee times online."
+        keywords={["golf course directory", "championship golf courses", "find golf course", "driving ranges", "tee times near me"]}
+        canonicalUrl="https://chipandchill.com/courses"
+        jsonLd={{
+          "@type": "ItemList",
+          "name": "Championship Golf Courses & Ranges",
+          "itemListElement": filteredCourses.slice(0, 10).map((c, index) => ({
+            "@type": "ListItem",
+            "position": index + 1,
+            "item": {
+              "@type": "GolfCourse",
+              "name": c.name,
+              "description": c.description || undefined,
+              "address": c.address || undefined,
+              "url": `https://chipandchill.com/courses/${c.id}`
+            }
+          }))
+        }}
+      />
       <div className="bg-gradient-to-br from-fairway to-turf text-white">
         <NavBar />
       </div>

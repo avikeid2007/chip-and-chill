@@ -4,6 +4,7 @@ import NavBar from "../components/NavBar";
 import TeeTicker from "../components/TeeTicker";
 import Scorecard from "../components/Scorecard";
 import Leaderboard from "../components/Leaderboard";
+import SeoHead from "../components/SeoHead";
 import { apiFetch } from "../api/client";
 import { toDateInput, formatTime } from "../utils/time";
 import type { TeeSlot, ScorecardHole, LeaderboardEntry } from "../types";
@@ -107,6 +108,32 @@ export default function Landing() {
 
   return (
     <div className="bg-[#FAFBF9] text-gray-900 selection:bg-gold selection:text-fairway">
+      <SeoHead
+        title="Chip & Chill — Championship Golf Course & Range Platform"
+        description="Book championship golf tee times, enter live tournaments with real-time scorecards, and reserve TrackMan driving range bays at premier golf facilities."
+        keywords={["golf booking", "tee times", "golf course management", "driving range booking", "TrackMan bays", "golf tournaments", "USGA handicap scorecard", "golf skins game"]}
+        canonicalUrl="https://chipandchill.com/"
+        ogImage="/og-image.svg"
+        jsonLd={[
+          {
+            "@type": "Organization",
+            "name": "Chip & Chill Golf",
+            "url": "https://chipandchill.com",
+            "logo": "https://chipandchill.com/icons/icon-192.svg",
+            "description": "The modern multi-tenant golf course management, tee sheet booking, and driving range platform."
+          },
+          {
+            "@type": "WebSite",
+            "name": "Chip & Chill",
+            "url": "https://chipandchill.com",
+            "potentialAction": {
+              "@type": "SearchAction",
+              "target": "https://chipandchill.com/courses?search={search_term_string}",
+              "query-input": "required name=search_term_string"
+            }
+          }
+        ]}
+      />
       {/* ── HERO SECTION ─────────────────────────────────────────────────── */}
       <div className="relative bg-gradient-to-br from-[#0B3024] via-[#124233] to-[#08241B] text-white overflow-hidden">
         {/* Subtle Luxury Pattern */}

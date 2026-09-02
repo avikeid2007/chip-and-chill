@@ -143,7 +143,6 @@ export default function App() {
           <Route path="/dashboard/tournaments" element={<RequireCourseAdmin><TournamentManager /></RequireCourseAdmin>} />
           <Route path="/dashboard/range" element={<RequireCourseAdmin><RangeManager /></RequireCourseAdmin>} />
           <Route path="/dashboard/golfers" element={<RequireCourseAdmin><GolferDirectory /></RequireCourseAdmin>} />
-          <Route path="/dashboard/pricing" element={<RequireCourseAdmin><PricingRules /></RequireCourseAdmin>} />
           <Route path="/dashboard/bookings" element={<RequireCourseAdmin><BookingsManagement /></RequireCourseAdmin>} />
           <Route path="/dashboard/reports" element={<RequireOwner><RevenueReport /></RequireOwner>} />
           <Route path="/dashboard/course" element={<RequireOwner><CourseEditor /></RequireOwner>} />

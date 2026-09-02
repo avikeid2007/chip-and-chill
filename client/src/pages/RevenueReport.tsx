@@ -72,7 +72,7 @@ function KpiCard({
       </div>
       <div>
         <p className="text-2xl font-extrabold text-fairway tracking-tight">
-          {suffix}{value.toLocaleString("en-IN", { maximumFractionDigits: 0 })}
+          {suffix}{value.toLocaleString(undefined, { maximumFractionDigits: 0 })}
         </p>
         <p className="text-xs text-ink-soft mt-0.5 font-medium">{label}</p>
       </div>

@@ -434,6 +434,12 @@ public class BookingsController : ControllerBase
         if (existingBookings < slot.MaxPlayers)
             return BadRequest("This slot still has open spots — book directly instead.");
 
+        // Prevent waitlisting if user already has an active confirmed booking for this slot.
+        var alreadyBooked = await _db.Bookings.IgnoreQueryFilters()
+            .AnyAsync(b => b.TeeSlotId == slotId && b.UserId == userId && b.Status != BookingStatus.Cancelled);
+        if (alreadyBooked)
+            return BadRequest("You already hold an active booking for this tee slot.");
+
         // One active waitlist entry per user per slot.
         var alreadyWaiting = await _db.WaitlistEntries.IgnoreQueryFilters()
             .AnyAsync(w => w.TeeSlotId == slotId && w.UserId == userId && !w.Notified);

@@ -1,6 +1,7 @@
 import { useEffect, useState, useMemo } from "react";
 import { useSearchParams, useParams, Link } from "react-router-dom";
 import NavBar from "../components/NavBar";
+import SeoHead from "../components/SeoHead";
 import PaymentModal from "../components/PaymentModal";
 import type { TeeSlot } from "../types";
 import { useAuth } from "../api/AuthContext";
@@ -193,6 +194,12 @@ export default function Booking() {
 
   return (
     <div className="min-h-screen bg-[#F7F9F6] text-gray-900 flex flex-col font-sans pb-28 md:pb-12">
+      <SeoHead
+        title={tenant ? `Book Tee Times — ${tenant.name}` : "Book Tee Times Online"}
+        description={tenant ? `Book online tee times and green fees for ${tenant.name}. Instant slot confirmation, party size selection, and dynamic pricing.` : "Book tee times online across championship golf courses."}
+        keywords={[tenant?.name || "golf course", "book tee time", "golf reservations", "green fee booking", "golf slots"]}
+        canonicalUrl={tenantId ? `https://chipandchill.com/courses/${tenantId}/book` : "https://chipandchill.com/booking"}
+      />
       <div className="bg-gradient-to-br from-fairway to-turf text-white">
         <NavBar />
       </div>

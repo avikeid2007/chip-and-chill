@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import NavBar from "../components/NavBar";
+import SeoHead from "../components/SeoHead";
 import { courseApi, type CourseHole, type Tenant, type CourseWeather } from "../api/course";
 import { API_BASE } from "../api/client";
 
@@ -77,14 +78,17 @@ export default function CourseProfile() {
         "PGA Lessons",
       ];
 
-  if (error) {
+  if (error || (!loading && !tenant)) {
     return (
       <div className="min-h-screen bg-[#F7F9F6]">
         <div className="bg-gradient-to-br from-fairway to-turf text-white"><NavBar /></div>
-        <div className="max-w-3xl mx-auto px-8 py-16 text-center">
-          <div className="text-3xl mb-2">⛳</div>
-          <p className="text-sm text-red-600 font-semibold">{error}</p>
-          <Link to="/courses" className="mt-4 inline-block text-xs font-bold text-fairway underline">← Back to Course Directory</Link>
+        <div className="max-w-md mx-auto px-6 py-20 text-center">
+          <div className="text-4xl mb-3">⛳</div>
+          <h2 className="text-xl font-bold text-gray-900 mb-2">Course Not Found</h2>
+          <p className="text-xs text-gray-600 mb-6">{error || "This golf course profile does not exist."}</p>
+          <Link to="/courses" className="inline-block px-6 py-3 rounded-2xl bg-fairway text-white text-xs font-bold shadow-md">
+            ← Back to All Courses
+          </Link>
         </div>
       </div>
     );
@@ -102,8 +106,55 @@ export default function CourseProfile() {
     );
   }
 
+  const courseTitle = tenant ? `${tenant.name} — ${holesCount}-Hole Golf Course & Tee Times` : "Golf Course Profile";
+  const courseDesc = tenant?.description || `Explore ${tenant?.name || "course"} scorecard, live satellite weather, hole flyovers, green fees, and tee time booking.`;
+  const courseImage = tenant?.coverImageUrl ? (tenant.coverImageUrl.startsWith("http") ? tenant.coverImageUrl : `${API_BASE}${tenant.coverImageUrl}`) : "/og-image.svg";
+
   return (
     <div className="min-h-screen bg-[#F7F9F6] text-gray-900 font-sans flex flex-col">
+      <SeoHead
+        title={courseTitle}
+        description={courseDesc}
+        keywords={[tenant?.name || "golf course", "tee times", "green fees", "scorecard", `${holesCount} holes`, "golf club"]}
+        canonicalUrl={`https://chipandchill.com/courses/${id}`}
+        ogImage={courseImage}
+        jsonLd={[
+          {
+            "@type": "GolfCourse",
+            "name": tenant?.name,
+            "description": courseDesc,
+            "image": courseImage,
+            "address": tenant?.address || undefined,
+            "priceRange": tenant?.currencySymbol ? `${tenant.currencySymbol}50 - ${tenant.currencySymbol}300` : "$$",
+            "numberOfHoles": holesCount,
+            "hasMap": tenant?.address ? `https://maps.google.com/?q=${encodeURIComponent(tenant.name + " " + tenant.address)}` : undefined,
+            "url": `https://chipandchill.com/courses/${id}`
+          },
+          {
+            "@type": "BreadcrumbList",
+            "itemListElement": [
+              {
+                "@type": "ListItem",
+                "position": 1,
+                "name": "Home",
+                "item": "https://chipandchill.com/"
+              },
+              {
+                "@type": "ListItem",
+                "position": 2,
+                "name": "Courses",
+                "item": "https://chipandchill.com/courses"
+              },
+              {
+                "@type": "ListItem",
+                "position": 3,
+                "name": tenant?.name || "Course",
+                "item": `https://chipandchill.com/courses/${id}`
+              }
+            ]
+          }
+        ]}
+      />
       <div className="bg-gradient-to-br from-fairway to-turf text-white">
         <NavBar />
       </div>

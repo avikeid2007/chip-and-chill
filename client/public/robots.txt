@@ -1,0 +1,22 @@
+User-agent: *
+Allow: /
+Allow: /courses
+Allow: /courses/*
+Allow: /tournaments
+Allow: /tournaments/*
+Allow: /range
+Allow: /booking
+Allow: /login
+Allow: /register
+
+# Disallow private admin, dashboard, and authentication callback routes
+Disallow: /dashboard/
+Disallow: /dashboard/*
+Disallow: /super-admin/
+Disallow: /super-admin/*
+Disallow: /reset-password
+Disallow: /profile
+Disallow: /api/
+
+# Sitemap location
+Sitemap: https://chipandchill.com/sitemap.xml

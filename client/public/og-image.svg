@@ -1,0 +1,91 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" width="1200" height="630">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0B3024" />
+      <stop offset="50%" stop-color="#144A39" />
+      <stop offset="100%" stop-color="#072018" />
+    </linearGradient>
+    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#E5C378" />
+      <stop offset="100%" stop-color="#C29B38" />
+    </linearGradient>
+    <radialGradient id="glow" cx="80%" cy="20%" r="60%">
+      <stop offset="0%" stop-color="#E5C378" stop-opacity="0.15" />
+      <stop offset="100%" stop-color="#0B3024" stop-opacity="0" />
+    </radialGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1200" height="630" fill="url(#bg)" />
+  <rect width="1200" height="630" fill="url(#glow)" />
+
+  <!-- Subtle Contour Grid Lines -->
+  <path d="M-100 450 C 300 380, 800 520, 1300 420" stroke="#FFFFFF" stroke-opacity="0.04" stroke-width="2" fill="none" />
+  <path d="M-100 480 C 400 420, 700 560, 1300 470" stroke="#FFFFFF" stroke-opacity="0.04" stroke-width="2" fill="none" />
+  <path d="M-100 520 C 350 460, 850 600, 1300 510" stroke="#FFFFFF" stroke-opacity="0.04" stroke-width="2" fill="none" />
+
+  <!-- Logo Mark -->
+  <g transform="translate(100, 110)">
+    <!-- Flag Pin & Green -->
+    <ellipse cx="60" cy="85" rx="50" ry="18" fill="#144A39" stroke="#E5C378" stroke-width="3" stroke-opacity="0.6" />
+    <circle cx="60" cy="85" r="7" fill="#072018" />
+    <line x1="60" y1="85" x2="60" y2="15" stroke="#E5C378" stroke-width="5" stroke-linecap="round" />
+    <polygon points="60,15 105,32 60,50" fill="url(#goldGrad)" />
+    
+    <!-- Brand Title -->
+    <text x="140" y="65" font-family="'Plus Jakarta Sans', system-ui, -apple-system, sans-serif" font-size="52" font-weight="900" fill="#FFFFFF" letter-spacing="-1">
+      Chip <tspan fill="#E5C378">&amp;</tspan> Chill
+    </text>
+    <text x="142" y="96" font-family="'Outfit', system-ui, sans-serif" font-size="20" font-weight="600" fill="#A7C4B5" letter-spacing="4">
+      GOLF COURSE &amp; RANGE PLATFORM
+    </text>
+  </g>
+
+  <!-- Main Headline & Value Props -->
+  <g transform="translate(100, 290)">
+    <text x="0" y="0" font-family="'Plus Jakarta Sans', system-ui, -apple-system, sans-serif" font-size="46" font-weight="800" fill="#FFFFFF" line-height="1.2">
+      Book Championship Tee Times,
+    </text>
+    <text x="0" y="55" font-family="'Plus Jakarta Sans', system-ui, -apple-system, sans-serif" font-size="46" font-weight="800" fill="url(#goldGrad)">
+      Tournaments &amp; TrackMan Bays
+    </text>
+    
+    <text x="0" y="115" font-family="system-ui, -apple-system, sans-serif" font-size="22" font-weight="400" fill="#E2E8F0" fill-opacity="0.85">
+      Live GPS green yardages, USGA handicap tracking, side games &amp; clubhouse POS.
+    </text>
+  </g>
+
+  <!-- Feature Pills -->
+  <g transform="translate(100, 480)">
+    <!-- Pill 1 -->
+    <rect x="0" y="0" width="220" height="52" rx="26" fill="#144A39" stroke="#E5C378" stroke-width="1.5" stroke-opacity="0.4" />
+    <text x="110" y="32" font-family="system-ui, sans-serif" font-size="16" font-weight="700" fill="#FFFFFF" text-anchor="middle">
+      ⛳ Live Tee Sheet
+    </text>
+
+    <!-- Pill 2 -->
+    <rect x="240" y="0" width="230" height="52" rx="26" fill="#144A39" stroke="#E5C378" stroke-width="1.5" stroke-opacity="0.4" />
+    <text x="355" y="32" font-family="system-ui, sans-serif" font-size="16" font-weight="700" fill="#FFFFFF" text-anchor="middle">
+      🏆 Tournaments &amp; Cut
+    </text>
+
+    <!-- Pill 3 -->
+    <rect x="490" y="0" width="240" height="52" rx="26" fill="#144A39" stroke="#E5C378" stroke-width="1.5" stroke-opacity="0.4" />
+    <text x="610" y="32" font-family="system-ui, sans-serif" font-size="16" font-weight="700" fill="#FFFFFF" text-anchor="middle">
+      🎯 Driving Range Bays
+    </text>
+
+    <!-- Pill 4 -->
+    <rect x="750" y="0" width="220" height="52" rx="26" fill="#144A39" stroke="#E5C378" stroke-width="1.5" stroke-opacity="0.4" />
+    <text x="860" y="32" font-family="system-ui, sans-serif" font-size="16" font-weight="700" fill="#FFFFFF" text-anchor="middle">
+      📱 WhatsApp Alerts
+    </text>
+  </g>
+
+  <!-- Website Badge -->
+  <g transform="translate(1040, 506)">
+    <text x="0" y="0" font-family="system-ui, monospace" font-size="15" font-weight="600" fill="#E5C378" text-anchor="end">
+      chipandchill.com
+    </text>
+  </g>
+</svg>

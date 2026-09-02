@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import NavBar from "../components/NavBar";
+import SeoHead from "../components/SeoHead";
 import { tournamentApi } from "../api/tournament";
 import { courseApi } from "../api/course";
 import { useAuth } from "../api/AuthContext";
@@ -83,7 +84,7 @@ export default function Tournaments() {
       const reg = await tournamentApi.register(tenantId, selectedTournament.id, {
         golferName: regName,
         golferEmail: regEmail,
-        handicapIndex: parseFloat(regHandicap) || undefined,
+        handicapIndex: parseFloat(regHandicap) || 0,
       });
 
       // If paid entry fee, auto-confirm sandbox payment for demo flow
@@ -110,6 +111,12 @@ export default function Tournaments() {
 
   return (
     <div className="min-h-screen bg-[#FAFBF9]">
+      <SeoHead
+        title={`Golf Tournaments & Championship Leaderboards — ${tenantName}`}
+        description={`Register for open club championships, medal play, weekly scrambles, and skins games with live TV scoreboards at ${tenantName}.`}
+        keywords={["golf tournaments", "golf leaderboards", "stroke play", "skins game", "club championship", "tournament registration"]}
+        canonicalUrl="https://chipandchill.com/tournaments"
+      />
       <div className="bg-gradient-to-br from-fairway to-turf">
         <NavBar />
         <div className="px-8 md:px-14 pb-14 pt-8 max-w-6xl mx-auto text-white">

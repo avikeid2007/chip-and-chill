@@ -228,6 +228,9 @@ public class RangeController : ControllerBase
             _ => 60
         };
 
+        if (req.StartTime < DateTime.UtcNow.AddMinutes(-5))
+            return BadRequest("Cannot book a range bay for a past time window.");
+
         var endTime = req.StartTime.AddMinutes(duration);
 
         // Check conflicts
