@@ -641,7 +641,11 @@ public class TournamentsController : ControllerBase
     // POST /api/tenants/{tenantId}/tournaments/{id}/confirm-sandbox-payment
     [HttpPost("{id:guid}/confirm-sandbox-payment")]
     [AllowAnonymous]
-    public async Task<ActionResult<TournamentRegistrationDto>> ConfirmSandboxPayment(Guid tenantId, Guid id, [FromQuery] Guid registrationId)
+    public async Task<ActionResult<TournamentRegistrationDto>> ConfirmSandboxPayment(
+        Guid tenantId,
+        Guid id,
+        [FromQuery] Guid registrationId,
+        [FromQuery] string? email = null)
     {
         var reg = await _db.TournamentRegistrations
             .IgnoreQueryFilters()
@@ -654,9 +658,19 @@ public class TournamentsController : ControllerBase
         Guid? currentUserId = null;
         if (userIdClaim != null && Guid.TryParse(userIdClaim, out var parsed)) currentUserId = parsed;
 
+        ApplicationUser? currentUser = null;
+        if (currentUserId.HasValue)
+        {
+            currentUser = await _userManager.FindByIdAsync(currentUserId.Value.ToString());
+        }
+
         var isStaffOrAdmin = User.IsInRole("CourseAdmin") || User.IsInRole("Staff") || User.IsInRole("SuperAdmin");
         var isOwner = (reg.UserId.HasValue && reg.UserId == currentUserId) ||
-                      (!reg.UserId.HasValue && !string.IsNullOrWhiteSpace(reg.GolferEmail));
+                      (!reg.UserId.HasValue && (
+                          (currentUser != null && string.Equals(currentUser.Email, reg.GolferEmail, StringComparison.OrdinalIgnoreCase)) ||
+                          (!string.IsNullOrWhiteSpace(email) && string.Equals(email, reg.GolferEmail, StringComparison.OrdinalIgnoreCase)) ||
+                          (reg.RegisteredAt >= DateTime.UtcNow.AddMinutes(-10))
+                      ));
 
         if (!isOwner && !isStaffOrAdmin)
             return Forbid();
@@ -1444,6 +1458,7 @@ public class TournamentsController : ControllerBase
         {
             rows = rows
                 .OrderBy(r => r.MadeCut == false ? 1 : 0)
+                .ThenBy(r => r.ThruHoles == 0 ? 1 : 0)
                 .ThenByDescending(r => r.StablefordPoints)
                 .ThenBy(r => r.TotalGross)
                 .ToList();

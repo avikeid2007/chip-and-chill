@@ -116,6 +116,25 @@ public class RoundsController : ControllerBase
                 round.HandicapDifferential = Math.Round((totalStrokes - req.CourseRating) * 113.0 / req.SlopeRating, 1);
             }
         }
+
+        // Update user's HandicapIndex on ApplicationUser
+        var userRounds = await _db.Rounds
+            .IgnoreQueryFilters()
+            .Where(r => r.UserId == userId)
+            .Include(r => r.Holes)
+            .ToListAsync();
+        userRounds.Add(round);
+
+        var updatedIndex = CalculateHandicapIndex(userRounds);
+        if (updatedIndex.HasValue)
+        {
+            var user = await _db.Users.IgnoreQueryFilters().FirstOrDefaultAsync(u => u.Id == userId);
+            if (user != null)
+            {
+                user.HandicapIndex = updatedIndex.Value;
+            }
+        }
+
         await _db.SaveChangesAsync();
 
         return CreatedAtAction(nameof(GetById), new { id = round.Id }, new RoundResponse(
@@ -127,6 +146,33 @@ public class RoundsController : ControllerBase
             round.CourseRating,
             round.SlopeRating,
             round.Holes.Select(h => new RoundHoleInput(h.HoleNumber, h.Par, h.Strokes)).ToList()));
+    }
+
+    public static double? CalculateHandicapIndex(IEnumerable<Round> rounds)
+    {
+        var differentials = rounds
+            .Where(r => r.HandicapDifferential.HasValue && r.Holes.Count >= 9)
+            .OrderByDescending(r => r.PlayedOn)
+            .Take(20)
+            .Select(r => r.HandicapDifferential!.Value)
+            .OrderBy(d => d)
+            .ToList();
+
+        if (differentials.Count == 0) return null;
+
+        var useCount = differentials.Count switch
+        {
+            1 or 2 or 3 or 4 => 1,
+            5 or 6 => 2,
+            7 or 8 => differentials.Count == 7 ? 2 : 3,
+            9 or 10 or 11 => differentials.Count == 9 ? 3 : 4,
+            12 or 13 or 14 => differentials.Count == 12 ? 4 : 5,
+            15 or 16 => 6,
+            17 or 18 => 7,
+            _ => 8
+        };
+        var avgBest = differentials.Take(useCount).Average();
+        return Math.Floor(avgBest * 0.96 * 10) / 10;
     }
 
     // GET /api/rounds/stats — aggregate stats + WHS handicap index for the caller.
@@ -153,31 +199,7 @@ public class RoundsController : ControllerBase
         // ---- WHS Handicap Index: average of best differentials from last 20
         // (scaled down for fewer rounds), × 0.96, truncated to 1 decimal.
         // 9-hole differentials are already stored pre-scaled to 18-hole equivalent.
-        var differentials = rounds
-            .Where(r => r.HandicapDifferential.HasValue && r.Holes.Count >= 9)
-            .OrderByDescending(r => r.PlayedOn)
-            .Take(20)
-            .Select(r => r.HandicapDifferential!.Value)
-            .OrderBy(d => d)
-            .ToList();
-
-        double? handicapIndex = null;
-        if (differentials.Count > 0)
-        {
-            var useCount = differentials.Count switch
-            {
-                1 or 2 or 3 or 4 => 1,
-                5 or 6 => 2,
-                7 or 8 => differentials.Count == 7 ? 2 : 3,
-                9 or 10 or 11 => differentials.Count == 9 ? 3 : 4,
-                12 or 13 or 14 => differentials.Count == 12 ? 4 : 5,
-                15 or 16 => 6,
-                17 or 18 => 7,
-                _ => 8
-            };
-            var avgBest = differentials.Take(useCount).Average();
-            handicapIndex = Math.Floor(avgBest * 0.96 * 10) / 10;
-        }
+        double? handicapIndex = CalculateHandicapIndex(rounds);
 
         // ---- Scoring average: use 18-hole rounds for the primary average
         //      to prevent 9-hole scores (~45 strokes) distorting the number.

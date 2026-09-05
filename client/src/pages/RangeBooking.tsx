@@ -9,6 +9,7 @@ import type { RangeBay, RangeAvailabilitySlot } from "../types";
 
 export default function RangeBooking() {
   const { user } = useAuth();
+  const token = user?.token;
   const [tenantId, setTenantId] = useState<string | null>(null);
   const [tenantName, setTenantName] = useState("OpenGolf Range");
   const [currencySymbol, setCurrencySymbol] = useState("₹");
@@ -33,6 +34,10 @@ export default function RangeBooking() {
   const [confirmationSuccess, setConfirmationSuccess] = useState(false);
 
   useEffect(() => {
+    if (user) {
+      setGolferName((prev) => prev || `${user.firstName} ${user.lastName}`.trim());
+      setGolferEmail((prev) => prev || user.email);
+    }
     if (user?.tenantId) {
       setTenantId(user.tenantId);
     } else {
@@ -85,16 +90,20 @@ export default function RangeBooking() {
     if (!tenantId || !selectedSlot) return;
     setBookingInProgress(true);
     try {
-      const booking = await rangeApi.createBooking(tenantId, {
-        rangeBayId: selectedSlot.rangeBayId,
-        golferName,
-        golferEmail,
-        startTime: selectedSlot.startTime,
-        durationMinutes: duration,
-      });
+      const booking = await rangeApi.createBooking(
+        tenantId,
+        {
+          rangeBayId: selectedSlot.rangeBayId,
+          golferName,
+          golferEmail,
+          startTime: selectedSlot.startTime,
+          durationMinutes: duration,
+        },
+        token
+      );
 
       // Auto-confirm payment in sandbox
-      await rangeApi.confirmSandboxPayment(tenantId, booking.id);
+      await rangeApi.confirmSandboxPayment(tenantId, booking.id, token);
 
       setConfirmationSuccess(true);
       loadBaysAndSlots();

@@ -45,7 +45,7 @@ public class AuthController : ControllerBase
             Email = req.Email,
             FirstName = req.FirstName,
             LastName = req.LastName,
-            Role = req.Role,
+            Role = AppRole.Golfer,
             TenantId = req.TenantId
         };
 

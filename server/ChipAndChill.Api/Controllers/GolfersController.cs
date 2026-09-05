@@ -376,11 +376,16 @@ public class GolfersController : ControllerBase
                 {
                     existing.TenantId = tenantId;
                 }
-                if (req.HandicapIndex.HasValue)
+                else if (existing.TenantId != tenantId)
+                {
+                    return Conflict(new { message = "A golfer with this email is already registered with another club." });
+                }
+
+                if (req.HandicapIndex.HasValue && !existing.HandicapIndex.HasValue)
                 {
                     existing.HandicapIndex = req.HandicapIndex.Value;
                 }
-                if (!string.IsNullOrWhiteSpace(req.PhoneNumber))
+                if (!string.IsNullOrWhiteSpace(req.PhoneNumber) && string.IsNullOrWhiteSpace(existing.PhoneNumber))
                 {
                     existing.PhoneNumber = req.PhoneNumber.Trim();
                 }

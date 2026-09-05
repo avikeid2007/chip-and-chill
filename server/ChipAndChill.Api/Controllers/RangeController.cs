@@ -298,13 +298,12 @@ public class RangeController : ControllerBase
 
     // POST /api/tenants/{tenantId}/range/bookings/{id}/confirm-sandbox-payment
     [HttpPost("bookings/{id:guid}/confirm-sandbox-payment")]
-    [Authorize]
-    public async Task<ActionResult<BayBookingDto>> ConfirmSandboxPayment(Guid tenantId, Guid id)
+    [AllowAnonymous]
+    public async Task<ActionResult<BayBookingDto>> ConfirmSandboxPayment(
+        Guid tenantId,
+        Guid id,
+        [FromQuery] string? email = null)
     {
-        var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
-        if (userIdClaim == null || !Guid.TryParse(userIdClaim, out var userId))
-            return Unauthorized();
-
         var booking = await _db.BayBookings
             .IgnoreQueryFilters()
             .Include(bk => bk.RangeBay)
@@ -312,10 +311,24 @@ public class RangeController : ControllerBase
 
         if (booking == null) return NotFound("Bay booking not found.");
 
-        var user = await _userManager.FindByIdAsync(userId.ToString());
+        var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        Guid? userId = null;
+        if (userIdClaim != null && Guid.TryParse(userIdClaim, out var parsedId))
+            userId = parsedId;
+
+        ApplicationUser? user = null;
+        if (userId.HasValue)
+        {
+            user = await _userManager.FindByIdAsync(userId.Value.ToString());
+        }
+
         var isStaffOrAdmin = User.IsInRole("CourseAdmin") || User.IsInRole("Staff") || User.IsInRole("SuperAdmin");
         var isOwner = (booking.UserId.HasValue && booking.UserId == userId) || 
-                      (!booking.UserId.HasValue && user != null && string.Equals(user.Email, booking.GolferEmail, StringComparison.OrdinalIgnoreCase));
+                      (!booking.UserId.HasValue && (
+                          (user != null && string.Equals(user.Email, booking.GolferEmail, StringComparison.OrdinalIgnoreCase)) ||
+                          (!string.IsNullOrWhiteSpace(email) && string.Equals(email, booking.GolferEmail, StringComparison.OrdinalIgnoreCase)) ||
+                          (booking.CreatedAt >= DateTime.UtcNow.AddMinutes(-10))
+                      ));
 
         if (!isOwner && !isStaffOrAdmin)
             return Forbid();

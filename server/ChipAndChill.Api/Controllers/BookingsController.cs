@@ -267,60 +267,56 @@ public class BookingsController : ControllerBase
         if (slot.StartTime.Date < DateTime.UtcNow.Date)
             return BadRequest("Cannot book a tee slot for a past date.");
 
-        // BUG-01 FIX: Re-query live booked count directly from DB (not the already-loaded navigation
-        // property) to get the most up-to-date figure. Then add the booking inside a try/catch so that
-        // any concurrent insert that sneaks through will be caught by the DB and returned as a 409.
-        var alreadyBooked = await _db.Bookings
-            .IgnoreQueryFilters()
-            .Where(b => b.TeeSlotId == slot.Id && b.Status != BookingStatus.Cancelled)
-            .SumAsync(b => (int?)b.PartySize) ?? 0;
-
-        if (alreadyBooked + req.PartySize > slot.MaxPlayers)
-            return BadRequest("Not enough open spots in this slot.");
-
-        var booking = new Booking
-        {
-            TenantId = targetTenantId,
-            TeeSlotId = req.TeeSlotId,
-            UserId = userId,
-            PartySize = req.PartySize,
-            Status = BookingStatus.Confirmed,
-            PaymentStatus = PaymentStatus.Unpaid,
-            AmountPaid = 0
-        };
-        _db.Bookings.Add(booking);
+        using var transaction = await _db.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable);
         try
         {
-            await _db.SaveChangesAsync();
-        }
-        catch (DbUpdateException)
-        {
-            // A concurrent booking may have filled the slot between our check and save.
-            // Re-verify capacity and return 409 if the slot is now full.
-            var currentBooked = await _db.Bookings
+            var alreadyBooked = await _db.Bookings
                 .IgnoreQueryFilters()
                 .Where(b => b.TeeSlotId == slot.Id && b.Status != BookingStatus.Cancelled)
                 .SumAsync(b => (int?)b.PartySize) ?? 0;
-            if (currentBooked > slot.MaxPlayers)
-                return Conflict("This slot just filled up. Please choose a different time.");
-            throw; // Rethrow unexpected DB errors
+
+            if (alreadyBooked + req.PartySize > slot.MaxPlayers)
+            {
+                await transaction.RollbackAsync();
+                return Conflict("Not enough open spots in this slot. Please choose a different time.");
+            }
+
+            var booking = new Booking
+            {
+                TenantId = targetTenantId,
+                TeeSlotId = req.TeeSlotId,
+                UserId = userId,
+                PartySize = req.PartySize,
+                Status = BookingStatus.Confirmed,
+                PaymentStatus = PaymentStatus.Unpaid,
+                AmountPaid = 0
+            };
+            _db.Bookings.Add(booking);
+            await _db.SaveChangesAsync();
+            await transaction.CommitAsync();
+
+            var totalPrice = slot.Price * req.PartySize;
+
+            // Booking confirmation email & SMS via per-course settings
+            var booker = await _db.Users.IgnoreQueryFilters().FirstOrDefaultAsync(u => u.Id == userId);
+            await _notificationService.SendBookingConfirmationAsync(targetTenantId, booking, booker, slot);
+
+            return Created($"/api/tenants/{targetTenantId}/bookings/{booking.Id}",
+                new BookingResponse(
+                    booking.Id,
+                    booking.TeeSlotId,
+                    booking.PartySize,
+                    booking.Status.ToString(),
+                    booking.PaymentStatus.ToString(),
+                    booking.AmountPaid,
+                    totalPrice
+                ));
         }
-
-        var totalPrice = slot.Price * req.PartySize;
-
-        // Booking confirmation email & SMS via per-course settings
-        var booker = await _db.Users.IgnoreQueryFilters().FirstOrDefaultAsync(u => u.Id == userId);
-        await _notificationService.SendBookingConfirmationAsync(targetTenantId, booking, booker, slot);
-
-        return Created($"/api/tenants/{targetTenantId}/bookings/{booking.Id}",
-            new BookingResponse(
-                booking.Id,
-                booking.TeeSlotId,
-                booking.PartySize,
-                booking.Status.ToString(),
-                booking.PaymentStatus.ToString(),
-                booking.AmountPaid,
-                totalPrice));
+        catch (Exception ex) when (ex is DbUpdateException or InvalidOperationException)
+        {
+            await transaction.RollbackAsync();
+            return Conflict("This slot just filled up or was modified concurrently. Please choose a different time.");
+        }
     }
 
     [HttpGet("bookings/mine")]

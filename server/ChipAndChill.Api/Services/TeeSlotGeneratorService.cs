@@ -128,7 +128,11 @@ public class TeeSlotGeneratorService : ITeeSlotGeneratorService
                     existingSet.Add(slotDateTime); // protect in-memory within loop
                 }
 
-                currentTime = currentTime.AddMinutes(interval);
+                if (interval <= 0) break;
+                var nextTime = currentTime.AddMinutes(interval);
+                if (nextTime <= currentTime)
+                    break;
+                currentTime = nextTime;
             }
 
             curDate = curDate.AddDays(1);

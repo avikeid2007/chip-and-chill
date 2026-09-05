@@ -151,7 +151,7 @@ export default function App() {
           <Route path="/dashboard/payouts" element={<RequireOwner><PayoutSettings /></RequireOwner>} />
           <Route path="/dashboard/pricing" element={<RequireOwner><PricingRules /></RequireOwner>} />
           <Route path="/dashboard/staff" element={<RequireOwner><StaffAccounts /></RequireOwner>} />
-          <Route path="/create-course" element={<RequireOwner><CreateCourse /></RequireOwner>} />
+          <Route path="/create-course" element={<RequireAuth><CreateCourse /></RequireAuth>} />
 
           {/* Super Admin */}
           <Route path="/super-admin" element={<RequireSuperAdmin><SuperAdminDashboard /></RequireSuperAdmin>} />

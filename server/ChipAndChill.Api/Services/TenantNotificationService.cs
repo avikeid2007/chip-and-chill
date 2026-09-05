@@ -324,20 +324,6 @@ public class TenantNotificationService : ITenantNotificationService
             tenant = await _db.Tenants.IgnoreQueryFilters().FirstOrDefaultAsync(t => t.Id == targetTenantId.Value);
         }
 
-        // If user has no tenant or tenant has no custom email configured, look for any configured tenant's SMTP (e.g. Brevo/Mailgun)
-        if (settings == null || !settings.UseCustomEmail)
-        {
-            var configuredSettings = await _db.TenantNotificationSettings
-                .IgnoreQueryFilters()
-                .FirstOrDefaultAsync(s => s.UseCustomEmail && (!string.IsNullOrWhiteSpace(s.SmtpHost) || !string.IsNullOrWhiteSpace(s.ApiKey)));
-
-            if (configuredSettings != null)
-            {
-                settings = configuredSettings;
-                tenant = await _db.Tenants.IgnoreQueryFilters().FirstOrDefaultAsync(t => t.Id == settings.TenantId);
-            }
-        }
-
         var courseName = tenant?.Name ?? "OpenGolf";
         var subject = $"Reset Your {courseName} Password";
         var body = $"Hi {user.FirstName},\n\n" +
